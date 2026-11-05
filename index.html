@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>คำนวณคิวปูนเทคาน</title>
+<style>
+:root{
+  --paper:#f5f2ea; --card:#fffdf8; --ink:#1e2a30; --muted:#5f6b70; --line:#d9d3c5;
+  --accent:#c8460c; --accent-ink:#fff; --ok:#1f7a4d; --warn:#9a5b00; --warn-bg:#fdf1d8;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 "Noto Sans Thai","Leelawadee UI","Sarabun",Tahoma,sans-serif;
+  display:grid;grid-template-columns:minmax(0,1fr) 380px;height:100vh;overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 11px}
+button:hover:not(:disabled){border-color:var(--ink)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.primary:hover:not(:disabled){background:#a93a08;border-color:#a93a08}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input[type=number],input[type=text],select{background:#fff;border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-width:0}
+
+/* ---- แปลน ---- */
+#left{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-width:0;min-height:0}
+#toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}
+#toolbar .sep{flex:1}
+.tool[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff}
+#stage{position:relative;overflow:hidden;background:#fff;touch-action:none}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+#stage.dragover{outline:3px dashed var(--accent);outline-offset:-8px}
+#empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:24px;
+  background-image:linear-gradient(#efeade 1px,transparent 1px),linear-gradient(90deg,#efeade 1px,transparent 1px);background-size:32px 32px}
+#empty h2{margin:0;font-size:22px}
+#empty p{margin:0;color:var(--muted);max-width:44ch}
+#scaleBox{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--ink);border-radius:8px;
+  padding:10px 12px;display:none;gap:8px;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,.15);white-space:nowrap}
+#scaleBox.show{display:flex}
+#scaleBox input{width:96px}
+#hint{padding:6px 12px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px;min-height:33px}
+#hint.warn{background:var(--warn-bg);color:var(--warn)}
+
+/* ---- แผงขวา ---- */
+#right{border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--card)}
+#result{background:var(--ink);color:#fff;padding:14px 16px}
+#result .lbl{font-size:13.5px;opacity:.8}
+#total{font-size:44px;line-height:1.15;font-weight:700;font-variant-numeric:tabular-nums}
+#total small{font-size:18px;font-weight:500;margin-left:6px}
+#formula{font-size:13.5px;opacity:.85;font-variant-numeric:tabular-nums}
+#scroll{overflow:auto;flex:1;min-height:0}
+section{padding:12px 16px;border-bottom:1px solid var(--line)}
+section h3{margin:0 0 8px;font-size:14.5px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row+.row{margin-top:8px}
+.row label{display:flex;gap:6px;align-items:center}
+.grow{flex:1;min-width:0}
+.note{color:var(--muted);font-size:13px;margin:6px 0 0}
+.note.good{color:var(--ok)}
+.note.bad{color:var(--warn)}
+#fileName{overflow-wrap:anywhere;font-size:13.5px;color:var(--muted)}
+.dims input{width:64px}
+.dl{width:32px}
+.chips{display:flex;gap:3px}
+.chips button{padding:3px 7px;font-variant-numeric:tabular-nums}
+.chips button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+#layerList{max-height:140px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13.5px}
+#layerList label{display:flex;gap:6px;align-items:center}
+#layerList .cnt{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+#layerList .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:12.5px;padding:2px 4px}
+th.r,td.r{text-align:right}
+td{padding:2px 4px;border-top:1px solid #eee7d8}
+#rows input{width:100%;border-color:transparent;background:transparent;padding:2px 4px}
+#rows input:hover,#rows input:focus{border-color:var(--line);background:#fff}
+#rows input.len{text-align:right}
+#rows input.est{color:var(--warn);font-style:italic}
+#sumTbl td{padding:3px 4px}
+#sumTbl tr.all td{font-weight:700;border-top:2px solid var(--ink)}
+td input.edited{color:var(--accent);font-weight:600}
+tr.hot{background:#fdeee3}
+.x{border:none;background:none;color:var(--muted);padding:0 6px;font-size:16px;line-height:1}
+.x:hover{color:var(--accent)}
+#noBeams{color:var(--muted);font-size:13.5px;margin:0}
+#askBox{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+#askBox>div{background:var(--card);border-radius:10px;padding:16px;max-width:340px;width:100%}
+#askBox p{margin:0 0 12px}
+#askBox .row{justify-content:flex-end}
+#printArea{display:none}
+@media (max-width:900px){
+  html,body{height:auto}
+  body{display:block;height:auto;min-height:100dvh;overflow:auto}
+  #left{display:block}
+  #toolbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #toolbar button{flex:none;min-height:40px}
+  #toolbar .sep{display:none}
+  #stage{height:58vh;height:58dvh}
+  #right{border-left:none;border-top:1px solid var(--line);display:block}
+  #scroll{overflow:visible}
+  #total{font-size:34px}
+  input[type=number],input[type=text],select{font-size:16px}
+  button{min-height:38px}
+  .x{min-height:0;padding:6px 10px}
+  .chips button{min-width:38px}
+  #scaleBox{white-space:normal;flex-wrap:wrap;width:calc(100% - 16px);top:8px}
+}
+@media print{
+  @page{size:A4;margin:0}
+  html,body{display:block;height:auto;overflow:visible;background:#fff}
+  body>*{display:none!important}
+  #printArea{display:block!important}
+  #printArea img{display:block;width:100%;break-after:page}
+}
+</style>
+</head>
+<body>
+<div id="left">
+  <div id="toolbar" role="toolbar" aria-label="เครื่องมือ">
+    <button class="primary" id="autoBtn" disabled title="หาคานและมาตราส่วนจากแปลนให้เอง">อ่านแบบอัตโนมัติ</button>
+    <button class="tool" data-tool="trace" aria-pressed="true" title="คลิกจุดเริ่มและจุดสิ้นสุดของคาน">ลากคาน</button>
+    <button class="tool" data-tool="pick" aria-pressed="false" id="pickBtn" disabled title="คลิกเส้นในไฟล์ DXF เพื่อเพิ่มเป็นคาน">เลือกเส้น</button>
+    <button class="tool" data-tool="erase" aria-pressed="false" title="คลิกคานบนแปลนเพื่อลบ">ลบคาน</button>
+    <button class="tool" data-tool="scale" aria-pressed="false" title="คลิกสองจุดที่รู้ระยะจริง">ตั้งมาตราส่วน</button>
+    <span class="sep"></span>
+    <button id="undoBtn" title="ย้อนคานล่าสุด (Ctrl+Z)">ย้อนกลับ</button>
+    <button id="zoomOut" aria-label="ซูมออก">−</button>
+    <button id="zoomIn" aria-label="ซูมเข้า">+</button>
+    <button id="fitBtn">พอดีจอ</button>
+  </div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="empty">
+      <h2>นำเข้าแปลนคานพื้น</h2>
+      <p>ลากไฟล์มาวางตรงนี้ หรือกดปุ่มด้านล่าง รองรับ DXF, PDF, PNG และ JPG</p>
+      <button class="primary" id="emptyOpen">เลือกไฟล์แปลน</button>
+    </div>
+    <div id="scaleBox">
+      <label for="scaleVal">ระยะจริงระหว่างสองจุด</label>
+      <input id="scaleVal" type="number" min="0" step="any" inputmode="decimal"> เมตร
+      <button class="primary" id="scaleOk">ตกลง</button>
+      <button id="scaleCancel">ยกเลิก</button>
+    </div>
+  </div>
+  <div id="hint" role="status"></div>
+</div>
+
+<aside id="right">
+  <div id="result">
+    <div class="lbl">ปริมาณคอนกรีตเทคานรวม</div>
+    <div id="total">0.000<small>คิว (ลบ.ม.)</small></div>
+    <div id="formula">ยังไม่มีคาน</div>
+  </div>
+  <div id="scroll">
+    <section>
+      <h3>แปลน</h3>
+      <div class="row">
+        <button id="openBtn">เลือกไฟล์แปลน</button>
+        <input id="file" type="file" hidden accept=".dxf,.pdf,.png,.jpg,.jpeg,.webp,.bmp,.dwg">
+        <span id="fileName" class="grow">ยังไม่ได้เลือกไฟล์</span>
+      </div>
+      <div class="row" id="pageRow" hidden>
+        <label>หน้า PDF <select id="pageSel"></select></label>
+      </div>
+      <div class="row" id="unitRow" hidden>
+        <label>หน่วยในไฟล์ DXF
+          <select id="unitSel">
+            <option value="0.001">มิลลิเมตร</option>
+            <option value="0.01">เซนติเมตร</option>
+            <option value="1">เมตร</option>
+            <option value="0.0254">นิ้ว</option>
+            <option value="0.3048">ฟุต</option>
+          </select>
+        </label>
+      </div>
+      <p class="note" id="scaleNote">ยังไม่ได้ตั้งมาตราส่วน</p>
+    </section>
+
+    <section>
+      <h3>ขนาดหน้าตัดคาน</h3>
+      <div class="row dims">
+        <span class="dl">กว้าง</span>
+        <span class="chips" data-for="wCm"><button>15</button><button>20</button><button>25</button><button>30</button><button>40</button></span>
+        <label><input id="wCm" type="number" min="0" step="any" value="20" aria-label="ความกว้างคาน (ซม.)"> ซม.</label>
+      </div>
+      <div class="row dims">
+        <span class="dl">สูง</span>
+        <span class="chips" data-for="dCm"><button>30</button><button>40</button><button>50</button><button>60</button><button>80</button></span>
+        <label><input id="dCm" type="number" min="0" step="any" value="40" aria-label="ความสูงคาน (ซม.)"> ซม.</label>
+      </div>
+    </section>
+
+    <section id="layerSec" hidden>
+      <h3>Layer ในไฟล์ DXF</h3>
+      <div id="layerList"></div>
+      <div class="row">
+        <select id="layerSel" class="grow" aria-label="Layer ของคาน"></select>
+        <button id="layerAdd">เพิ่มทั้ง Layer</button>
+      </div>
+      <div class="row">
+        <label><input id="pairChk" type="checkbox" checked> คานเขียนเป็นเส้นคู่ (รวมเป็นเส้นกลางคาน)</label>
+      </div>
+      <p class="note" id="layerNote"></p>
+    </section>
+
+    <section>
+      <h3>สรุปผลรวมทั้งหมด</h3>
+      <table id="sumTbl">
+        <thead><tr><th>แนวคาน</th><th class="r">จำนวน</th><th class="r">ยาวรวม (ม.)</th><th class="r">ลบ.ม.</th></tr></thead>
+        <tbody id="sumRows"></tbody>
+      </table>
+      <p class="note" id="sumNote"></p>
+    </section>
+
+    <section>
+      <h3>รายการคาน</h3>
+      <p id="noBeams">ลากคานบนแปลน หรือพิมพ์ความยาวเพิ่มเอง</p>
+      <table id="tbl" hidden>
+        <thead><tr><th>ชื่อ</th><th class="r">ยาว (ม.)</th><th class="r">ลบ.ม.</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="row" style="margin-top:8px">
+        <input id="manualLen" class="grow" type="number" min="0" step="any" placeholder="ความยาว (เมตร)" aria-label="ความยาวคาน (เมตร)">
+        <button id="manualAdd">เพิ่มคาน</button>
+      </div>
+      <div class="row">
+        <button id="clearBtn" disabled>ล้างทั้งหมด</button>
+      </div>
+    </section>
+
+    <section>
+      <h3>พิมพ์และดาวน์โหลด</h3>
+      <div class="row">
+        <button id="printBtn" disabled>พิมพ์</button>
+        <button id="pdfBtn" class="primary" disabled>ดาวน์โหลด PDF</button>
+        <button id="pngBtn" disabled>ดาวน์โหลดรูปภาพ</button>
+        <button id="csvBtn" disabled>CSV (Excel)</button>
+      </div>
+      <p class="note" id="exportNote">รายงานมีแปลนพร้อมเส้นคาน ตารางสรุป และรายการคานทุกช่วง</p>
+    </section>
+  </div>
+</aside>
+<div id="printArea"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage');
+
+const S = {
+  kind: null,            // 'raster' | 'dxf'
+  raster: null,          // canvas หรือ image
+  rw: 0, rh: 0,
+  dxf: null,             // {segs, texts, layers:Map(name->{count,visible}), path, bounds}
+  pdf: null, page: 1,
+  mPerUnit: null,        // เมตรต่อ 1 หน่วยบนแปลน
+  beams: [], nextNo: 1,
+  view: { s: 1, ox: 0, oy: 0 },
+  tool: 'trace',
+  pending: null,         // จุดแรกที่คลิกแล้ว
+  scalePts: null,        // [p1,p2] ระหว่างตั้งมาตราส่วน
+  mouse: null,           // ตำแหน่งบนแปลน (หลัง snap)
+  snapped: false,
+  hoverSeg: null, hotBeam: null, shift: false,
+};
+
+/* ---------- การคำนวณ ---------- */
+const widthM = () => Math.max(0, parseFloat($('wCm').value) || 0) / 100;
+const depthM = () => Math.max(0, parseFloat($('dCm').value) || 0) / 100;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+function beamLength(b) {
+  if (b.manual != null) return b.manual;
+  if (b.plan != null) return b.plan;
+  if (!b.a || !S.mPerUnit) return null;
+  return dist(b.a, b.b) * S.mPerUnit;
+}
+const beamVolume = b => { const L = beamLength(b); return L == null ? null : L * widthM() * depthM(); };
+
+/* ---------- อ่านไฟล์ DXF ---------- */
+function decodeDXF(buf) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+  catch { return new TextDecoder('windows-874').decode(buf); }
+}
+const cleanText = s => s
+  .replace(/\\U\+([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+  .replace(/\\[PpNn]/g, ' ')
+  .replace(/\\[A-Za-z][^;\\]*;/g, '')
+  .replace(/[{}]/g, '')
+  .replace(/%%[cC]/g, 'Ø').replace(/%%[dD]/g, '°').replace(/%%[pP]/g, '±');
+
+function parseDXF(text) {
+  if (text.startsWith('AutoCAD Binary DXF')) throw new Error('ไฟล์นี้เป็น DXF แบบ Binary กรุณาบันทึกใหม่เป็น DXF แบบ ASCII');
+  const L = text.split(/\r\n|\r|\n/);
+  const recs = []; let cur = null;
+  for (let i = 0; i + 1 < L.length; i += 2) {
+    const code = parseInt(L[i], 10);
+    if (Number.isNaN(code)) throw new Error('รูปแบบไฟล์ DXF ไม่ถูกต้อง');
+    const val = L[i + 1];
+    if (code === 0) { cur = { type: val.trim(), g: [] }; recs.push(cur); }
+    else if (cur) cur.g.push([code, val]);
+  }
+  const num = (r, c, d = 0) => { const p = r.g.find(x => x[0] === c); return p ? parseFloat(p[1]) : d; };
+  const str = (r, c, d = '') => { const p = r.g.find(x => x[0] === c); return p ? p[1].trim() : d; };
+
+  let insunits = 0, section = null, block = null, poly = null;
+  const blocks = new Map(), model = [];
+
+  function toEnt(r) {
+    const layer = str(r, 8, '0');
+    switch (r.type) {
+      case 'LINE': return { t: 'L', layer, a: { x: num(r, 10), y: num(r, 20) }, b: { x: num(r, 11), y: num(r, 21) } };
+      case 'LWPOLYLINE': {
+        const pts = []; let p = null;
+        for (const [c, v] of r.g) {
+          if (c === 10) { p = { x: parseFloat(v), y: 0, bulge: 0 }; pts.push(p); }
+          else if (c === 20 && p) p.y = parseFloat(v);
+          else if (c === 42 && p) p.bulge = parseFloat(v);
+        }
+        return { t: 'P', layer, pts, closed: (num(r, 70) & 1) === 1 };
+      }
+      case 'ARC': return { t: 'A', layer, c: { x: num(r, 10), y: num(r, 20) }, r: num(r, 40), a0: num(r, 50), a1: num(r, 51) };
+      case 'CIRCLE': return { t: 'A', layer, c: { x: num(r, 10), y: num(r, 20) }, r: num(r, 40), a0: 0, a1: 360 };
+      case 'TEXT': return { t: 'T', layer, p: { x: num(r, 10), y: num(r, 20) }, h: num(r, 40, 1), rot: num(r, 50), s: cleanText(str(r, 1)) };
+      case 'MTEXT': {
+        const s = r.g.filter(x => x[0] === 3 || x[0] === 1).map(x => x[1]).join('');
+        return { t: 'T', layer, p: { x: num(r, 10), y: num(r, 20) }, h: num(r, 40, 1), rot: num(r, 50), s: cleanText(s) };
+      }
+      case 'INSERT': return { t: 'I', layer, name: str(r, 2), p: { x: num(r, 10), y: num(r, 20) }, sx: num(r, 41, 1), sy: num(r, 42, 1), rot: num(r, 50) };
+      case 'DIMENSION': return { t: 'I', layer, name: str(r, 2), p: { x: 0, y: 0 }, sx: 1, sy: 1, rot: 0 };
+    }
+    return null;
+  }
+
+  for (const r of recs) {
+    if (r.type === 'SECTION') {
+      section = str(r, 2);
+      if (section === 'HEADER') {
+        const i = r.g.findIndex(x => x[0] === 9 && x[1].trim() === '$INSUNITS');
+        if (i >= 0 && r.g[i + 1]) insunits = parseInt(r.g[i + 1][1], 10) || 0;
+      }
+      continue;
+    }
+    if (r.type === 'ENDSEC') { section = null; continue; }
+    if (section === 'BLOCKS') {
+      if (r.type === 'BLOCK') { block = { name: str(r, 2), base: { x: num(r, 10), y: num(r, 20) }, ents: [] }; continue; }
+      if (r.type === 'ENDBLK') { if (block) blocks.set(block.name, block); block = null; continue; }
+    } else if (section !== 'ENTITIES') continue;
+
+    const list = section === 'BLOCKS' ? (block && block.ents) : model;
+    if (!list) continue;
+    if (r.type === 'POLYLINE') {
+      if (num(r, 67) === 1) { poly = { pts: [] }; continue; }
+      poly = { t: 'P', layer: str(r, 8, '0'), pts: [], closed: (num(r, 70) & 1) === 1 };
+      list.push(poly); continue;
+    }
+    if (r.type === 'VERTEX') { if (poly) poly.pts.push({ x: num(r, 10), y: num(r, 20), bulge: num(r, 42) }); continue; }
+    if (r.type === 'SEQEND') { poly = null; continue; }
+    if (num(r, 67) === 1) continue;     // ข้าม Paper Space
+    const e = toEnt(r);
+    if (e) list.push(e);
+  }
+
+  const segs = [], texts = [];
+  const ap = (M, p) => ({ x: M[0] * p.x + M[2] * p.y + M[4], y: M[1] * p.x + M[3] * p.y + M[5] });
+  const mul = (A, B) => [
+    A[0] * B[0] + A[2] * B[1], A[1] * B[0] + A[3] * B[1],
+    A[0] * B[2] + A[2] * B[3], A[1] * B[2] + A[3] * B[3],
+    A[0] * B[4] + A[2] * B[5] + A[4], A[1] * B[4] + A[3] * B[5] + A[5]];
+  const addSeg = (M, a, b, layer, curve) => {
+    const p = ap(M, a), q = ap(M, b);
+    segs.push({ ax: p.x, ay: p.y, bx: q.x, by: q.y, layer, curve: !!curve });
+  };
+  function addArc(M, c, r, start, sweep, layer) {
+    const n = Math.max(6, Math.ceil(Math.abs(sweep) / (Math.PI / 16)));
+    let prev = { x: c.x + r * Math.cos(start), y: c.y + r * Math.sin(start) };
+    for (let k = 1; k <= n; k++) {
+      const t = start + sweep * k / n, p = { x: c.x + r * Math.cos(t), y: c.y + r * Math.sin(t) };
+      addSeg(M, prev, p, layer, true); prev = p;
+    }
+  }
+  function emit(ents, M, inherit, depth) {
+    for (const e of ents) {
+      const layer = e.layer === '0' && inherit ? inherit : e.layer;
+      if (e.t === 'L') addSeg(M, e.a, e.b, layer);
+      else if (e.t === 'P') {
+        const n = e.pts.length, m = e.closed ? n : n - 1;
+        for (let i = 0; i < m; i++) {
+          const p = e.pts[i], q = e.pts[(i + 1) % n], bu = p.bulge || 0;
+          if (Math.abs(bu) < 1e-9) addSeg(M, p, q, layer);
+          else {
+            const d = dist(p, q); if (d < 1e-12) continue;
+            const k = d * (1 - bu * bu) / (4 * bu), nx = -(q.y - p.y) / d, ny = (q.x - p.x) / d;
+            const c = { x: (p.x + q.x) / 2 + nx * k, y: (p.y + q.y) / 2 + ny * k };
+            addArc(M, c, dist(c, p), Math.atan2(p.y - c.y, p.x - c.x), 4 * Math.atan(bu), layer);
+          }
+        }
+      } else if (e.t === 'A') {
+        const a0 = e.a0 * Math.PI / 180; let sw = (e.a1 - e.a0) * Math.PI / 180;
+        if (sw <= 0) sw += 2 * Math.PI;
+        addArc(M, e.c, e.r, a0, sw, layer);
+      } else if (e.t === 'T') {
+        if (!e.s) continue;
+        const r = e.rot * Math.PI / 180, p = ap(M, e.p), q = ap(M, { x: e.p.x + Math.cos(r), y: e.p.y + Math.sin(r) });
+        texts.push({ x: p.x, y: p.y, h: e.h * Math.hypot(M[2], M[3]), ang: Math.atan2(q.y - p.y, q.x - p.x), s: e.s, layer });
+      } else if (e.t === 'I') {
+        const b = blocks.get(e.name);
+        if (!b || depth > 8) continue;
+        const r = e.rot * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+        let T = mul(M, [1, 0, 0, 1, e.p.x, e.p.y]);
+        T = mul(T, [c, s, -s, c, 0, 0]);
+        T = mul(T, [e.sx, 0, 0, e.sy, 0, 0]);
+        T = mul(T, [1, 0, 0, 1, -b.base.x, -b.base.y]);
+        emit(b.ents, T, layer, depth + 1);
+      }
+    }
+  }
+  emit(model, [1, 0, 0, -1, 0, 0], null, 0);   // กลับแกน y ให้ตรงกับหน้าจอ
+  if (!segs.length) throw new Error('ไม่พบเส้นใน Model Space ของไฟล์นี้');
+
+  const layers = new Map();
+  for (const s of segs) {
+    const l = layers.get(s.layer) || { count: 0, visible: true };
+    l.count++; layers.set(s.layer, l);
+  }
+  return { segs, texts, layers, insunits, bounds: robustBounds(segs) };
+}
+
+// ตัดจุดที่อยู่ห่างผิดปกติ เพื่อให้ "พอดีจอ" ไม่ซูมออกไปไกลเพราะเส้นหลงมุม
+function robustBounds(segs) {
+  const xs = [], ys = [];
+  for (const s of segs) { xs.push(s.ax, s.bx); ys.push(s.ay, s.by); }
+  xs.sort((a, b) => a - b); ys.sort((a, b) => a - b);
+  const k = xs.length > 200 ? Math.floor(xs.length * 0.005) : 0, e = xs.length - 1 - k;
+  return { x0: xs[k], x1: xs[e], y0: ys[k], y1: ys[e] };
+}
+
+function guessUnit(d) {
+  const known = { 1: 0.0254, 2: 0.3048, 4: 0.001, 5: 0.01, 6: 1 };
+  if (known[d.insunits]) return { m: known[d.insunits], guessed: false };
+  const span = Math.max(d.bounds.x1 - d.bounds.x0, d.bounds.y1 - d.bounds.y0);
+  return { m: span > 1000 ? 0.001 : 1, guessed: true };
+}
+
+function rebuildPath() {
+  const d = S.dxf, p = new Path2D();
+  for (const s of d.segs) {
+    if (!d.layers.get(s.layer).visible) continue;
+    p.moveTo(s.ax, s.ay); p.lineTo(s.bx, s.by);
+  }
+  d.path = p;
+}
+
+/* แปลงเส้นใน Layer เป็นคาน: ถ้าเป็นเส้นคู่จะจับคู่ขอบคานแล้วใช้เส้นกลาง */
+function beamsFromLayer(layer, paired) {
+  const segs = S.dxf.segs.filter(s => s.layer === layer && !s.curve && Math.hypot(s.bx - s.ax, s.by - s.ay) > 1e-9);
+  if (!paired) return { out: segs.map(s => ({ a: { x: s.ax, y: s.ay }, b: { x: s.bx, y: s.by } })), skipped: 0 };
+
+  const w = (widthM() || 0.2) / S.mPerUnit, minD = 0.25 * w, maxD = 2 * w, tol = 0.005 / S.mPerUnit, gap = 2 * w, minLen = 2 * w;
+  const STEP = Math.PI / 360, groups = new Map();
+  for (const s of segs) {
+    let th = Math.atan2(s.by - s.ay, s.bx - s.ax);
+    if (th < 0) th += Math.PI;
+    const key = Math.round(th / STEP) % 360;
+    let g = groups.get(key);
+    if (!g) { g = { ux: Math.cos(key * STEP), uy: Math.sin(key * STEP), items: [] }; groups.set(key, g); }
+    const t0 = s.ax * g.ux + s.ay * g.uy, t1 = s.bx * g.ux + s.by * g.uy;
+    const d = (-g.uy * (s.ax + s.bx) + g.ux * (s.ay + s.by)) / 2;
+    g.items.push({ d, t0: Math.min(t0, t1), t1: Math.max(t0, t1) });
+  }
+  const out = []; let skipped = 0;
+  for (const g of groups.values()) {
+    g.items.sort((a, b) => a.d - b.d);
+    const rails = [];
+    for (const it of g.items) {
+      const r = rails[rails.length - 1];
+      if (r && it.d - r.d <= tol) r.items.push(it); else rails.push({ d: it.d, items: [it] });
+    }
+    for (const r of rails) {          // รวมเส้นแนวเดียวกันที่ขาดช่วงสั้น ๆ ตรงจุดตัดคาน
+      r.items.sort((a, b) => a.t0 - b.t0);
+      r.iv = [];
+      for (const it of r.items) {
+        const last = r.iv[r.iv.length - 1];
+        if (last && it.t0 - last.t1 <= gap) last.t1 = Math.max(last.t1, it.t1);
+        else r.iv.push({ t0: it.t0, t1: it.t1, used: false });
+      }
+    }
+    for (let i = 0; i + 1 < rails.length; i++) {
+      const A = rails[i], B = rails[i + 1], sep = B.d - A.d;
+      if (sep < minD || sep > maxD) continue;
+      let any = false;
+      for (const p of A.iv) for (const q of B.iv) {
+        const lo = Math.max(p.t0, q.t0), hi = Math.min(p.t1, q.t1);
+        if (hi - lo < minLen) continue;
+        const c = (A.d + B.d) / 2, nx = -g.uy, ny = g.ux;
+        out.push({ a: { x: g.ux * lo + nx * c, y: g.uy * lo + ny * c }, b: { x: g.ux * hi + nx * c, y: g.uy * hi + ny * c } });
+        p.used = q.used = true; any = true;
+      }
+      if (any) i++;
+    }
+    for (const r of rails) for (const v of r.iv) if (!v.used && v.t1 - v.t0 >= minLen) skipped++;
+  }
+  return { out, skipped };
+}
+
+/* ---------- นำเข้าไฟล์ ---------- */
+function askBox(msg) {
+  return new Promise(res => {
+    const box = document.createElement('div'); box.id = 'askBox';
+    const card = document.createElement('div'), p = document.createElement('p'), row = document.createElement('div');
+    const no = document.createElement('button'), yes = document.createElement('button');
+    p.textContent = msg; row.className = 'row';
+    no.textContent = 'ยกเลิก'; yes.textContent = 'ตกลง'; yes.className = 'primary';
+    const done = v => { box.remove(); res(v); };
+    no.onclick = () => done(false); yes.onclick = () => done(true);
+    row.append(no, yes); card.append(p, row); box.append(card); document.body.append(box);
+    yes.focus();
+  });
+}
+async function startFresh() {
+  if (S.beams.length && !await askBox('เปิดแปลนใหม่จะล้างรายการคานเดิม ต้องการทำต่อหรือไม่?')) return false;
+  S.beams = []; S.nextNo = 1; S.pending = null; S.scalePts = null;
+  $('scaleBox').classList.remove('show');
+  return true;
+}
+
+async function openFile(f) {
+  const ext = (f.name.split('.').pop() || '').toLowerCase();
+  if (ext === 'dwg') { hint('อ่านไฟล์ DWG โดยตรงไม่ได้ กรุณาเปิดใน AutoCAD แล้ว Save As เป็น DXF', true); return; }
+  if (!['dxf', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'bmp'].includes(ext)) { hint('ไม่รองรับไฟล์ชนิดนี้ ใช้ DXF, PDF, PNG หรือ JPG', true); return; }
+  if (!await startFresh()) return;
+  hint('กำลังเปิดไฟล์...');
+  try {
+    if (ext === 'dxf') loadDXF(decodeDXF(await f.arrayBuffer()));
+    else if (ext === 'pdf') await loadPDF(await f.arrayBuffer());
+    else await loadImage(f);
+    $('fileName').textContent = f.name;
+    $('empty').hidden = true;
+    fit(); renderAll();
+    $('autoBtn').disabled = false;
+    if (S.kind === 'raster' || S.dxf.guess) autoRead();
+  } catch (e) {
+    console.error(e);
+    hint('เปิดไฟล์ไม่สำเร็จ: ' + e.message, true);
+  }
+}
+
+function loadDXF(text) {
+  const d = parseDXF(text);
+  S.kind = 'dxf'; S.dxf = d; S.raster = null; S.pdf = null;
+  rebuildPath();
+  const u = guessUnit(d);
+  S.mPerUnit = u.m; S.scaleFromUser = false; S.scaleFromOcr = 0; S.unitGuessed = u.guessed;
+  $('unitSel').value = String(u.m);
+  $('unitRow').hidden = false; $('pageRow').hidden = true; $('layerSec').hidden = false;
+  $('pickBtn').disabled = false;
+  renderLayers();
+  setTool('trace');
+}
+
+function useRaster(src, w, h) {
+  S.kind = 'raster'; S.raster = src; S.rw = w; S.rh = h; S.dxf = null;
+  S.mPerUnit = null; S.scaleFromUser = false; S.scaleFromOcr = 0;
+  $('unitRow').hidden = true; $('layerSec').hidden = true; $('pickBtn').disabled = true;
+  setTool('scale');
+}
+
+function loadImage(f) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(f), img = new Image();
+    img.onload = () => { useRaster(img, img.naturalWidth, img.naturalHeight); $('pageRow').hidden = true; S.pdf = null; res(); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('ไฟล์รูปเสียหรือเปิดไม่ได้')); };
+    img.src = url;
+  });
+}
+
+function loadPdfLib() {
+  if (window.pdfjsLib) return Promise.resolve();
+  const base = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = base + 'pdf.min.js';
+    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js'; res(); };
+    s.onerror = () => rej(new Error('การเปิด PDF ต้องต่ออินเทอร์เน็ต หากออฟไลน์ให้แปลงแปลนเป็น PNG หรือ JPG ก่อน'));
+    document.head.appendChild(s);
+  });
+}
+
+async function loadPDF(buf) {
+  await loadPdfLib();
+  S.pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const sel = $('pageSel'); sel.replaceChildren();
+  for (let i = 1; i <= S.pdf.numPages; i++) sel.add(new Option(String(i), String(i)));
+  $('pageRow').hidden = S.pdf.numPages < 2;
+  await showPdfPage(1);
+}
+
+async function showPdfPage(n) {
+  const page = await S.pdf.getPage(n);
+  const v1 = page.getViewport({ scale: 1 });
+  const scale = Math.min(6, 4000 / Math.max(v1.width, v1.height));
+  const vp = page.getViewport({ scale });
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+  await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+  S.page = n;
+  useRaster(c, c.width, c.height);
+}
+
+/* ---------- อ่านแบบอัตโนมัติจากรูป ---------- */
+function rasterMask() {
+  const k = 2000 / Math.max(S.rw, S.rh);   // ปรับทุกแปลนให้ขนาดเท่ากันก่อนวิเคราะห์
+  const w = Math.round(S.rw * k), h = Math.round(S.rh * k);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(S.raster, 0, 0, w, h);
+  const d = g.getImageData(0, 0, w, h).data, m = new Uint8Array(w * h);
+  for (let i = 0; i < m.length; i++) {
+    const lum = 0.3 * d[i * 4] + 0.59 * d[i * 4 + 1] + 0.11 * d[i * 4 + 2];
+    m[i] = lum < 215 ? 1 : 0;
+  }
+  return { m, w, h, k, canvas: c };
+}
+function transposeMask(m, w, h) {
+  const t = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) t[x * h + y] = m[y * w + x];
+  return t;
+}
+// หาเส้นแนวนอนยาว ๆ คืน [{p: ตำแหน่ง y, a, b: ช่วง x}]
+function findLines(m, w, h, minRun) {
+  const done = []; let active = [];
+  for (let y = 0; y < h; y++) {
+    const runs = []; let x = 0;
+    while (x < w) {
+      if (!m[y * w + x]) { x++; continue; }
+      let s = x, e = x, miss = 0;
+      for (x++; x < w && miss <= 2; x++) { if (m[y * w + x]) { e = x; miss = 0; } else miss++; }
+      if (e - s + 1 >= minRun) runs.push([s, e]);
+    }
+    const next = [];
+    for (const [a, b] of runs) {
+      let seg = active.find(s => !s.t && Math.min(b, s.b) - Math.max(a, s.a) > 0.5 * Math.min(b - a, s.b - s.a));
+      if (seg) { seg.t = true; seg.a = Math.min(seg.a, a); seg.b = Math.max(seg.b, b); seg.sum += y * (b - a); seg.n += b - a; seg.y1 = y; }
+      else seg = { a, b, sum: y * (b - a), n: b - a, y0: y, y1: y, t: true };
+      next.push(seg);
+    }
+    for (const s of active) if (!s.t) done.push(s);
+    for (const s of next) s.t = false;
+    active = next;
+  }
+  done.push(...active);
+  const lines = done.filter(s => s.y1 - s.y0 < 6).map(s => ({ p: s.sum / s.n, a: s.a, b: s.b })).sort((u, v) => u.p - v.p);
+  const merged = [];                  // รวมเส้นแนวเดียวกันที่ขาดเล็กน้อย
+  for (let i = 0; i < lines.length;) {
+    let j = i; const grp = [];
+    while (j < lines.length && lines[j].p - lines[i].p <= 1.5) grp.push(lines[j++]);
+    grp.sort((u, v) => u.a - v.a);
+    let cur = null;
+    for (const l of grp) {
+      if (cur && l.a - cur.b <= 6) { cur.b = Math.max(cur.b, l.b); }
+      else { cur = { ...l }; merged.push(cur); }
+    }
+    i = j;
+  }
+  return merged.sort((u, v) => u.p - v.p);
+}
+// ระยะห่างเส้นคู่ที่พบมากที่สุด = ความกว้างคานบนแปลน
+function beamSpacing(all, maxW) {
+  const hist = new Float64Array(maxW + 2);
+  for (const L of all) for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+    const d = L[j].p - L[i].p;
+    if (d > maxW) break;
+    if (d < 3) continue;
+    const ov = Math.min(L[i].b, L[j].b) - Math.max(L[i].a, L[j].a);
+    if (ov > 0) hist[Math.round(d)] += ov;
+  }
+  const sm = hist.map((v, i) => v + (hist[i - 1] || 0) + (hist[i + 1] || 0));
+  const top = Math.max(...sm);
+  if (!top) return null;
+  for (let d = maxW; d >= 3; d--) {   // ถ้ามีเส้นกริดกลางคาน ให้ใช้ระยะขอบถึงขอบ ไม่ใช่ขอบถึงกลาง
+    if (sm[d] >= 0.3 * top && sm[d] >= sm[d - 1] && sm[d] >= (sm[d + 1] || 0)) return d;
+  }
+  return null;
+}
+function findStrips(L, sp) {
+  const raw = [], tol = Math.max(1.5, sp * 0.2);
+  for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+    const d = L[j].p - L[i].p;
+    if (d > sp + tol) break;
+    if (d < sp - tol) continue;
+    const a = Math.max(L[i].a, L[j].a), b = Math.min(L[i].b, L[j].b);
+    if (b - a >= sp * 1.5) raw.push({ c: (L[i].p + L[j].p) / 2, a, b });
+  }
+  raw.sort((u, v) => u.c - v.c);
+  const out = [];
+  for (let i = 0; i < raw.length;) {
+    let j = i; const grp = [];
+    while (j < raw.length && raw[j].c - raw[i].c <= sp / 2) grp.push(raw[j++]);
+    const c = grp.reduce((s, r) => s + r.c * (r.b - r.a), 0) / grp.reduce((s, r) => s + r.b - r.a, 0);
+    grp.sort((u, v) => u.a - v.a);
+    let cur = null;
+    for (const r of grp) {
+      if (cur && r.a - cur.b <= sp * 1.6) cur.b = Math.max(cur.b, r.b);
+      else { cur = { c, a: r.a, b: r.b }; out.push(cur); }
+    }
+    i = j;
+  }
+  return out;
+}
+// แนวกริด = ตำแหน่งที่มีเส้นรวมกันยาวมาก
+function findAxes(L, span) {
+  const out = [];
+  for (let i = 0; i < L.length;) {
+    let j = i, sum = 0, wsum = 0;
+    while (j < L.length && L[j].p - L[i].p <= 2) { const n = L[j].b - L[j].a; sum += n; wsum += n * L[j].p; j++; }
+    if (sum >= span * 0.08) out.push(wsum / sum);
+    i = j;
+  }
+  return out;
+}
+function detectBeams() {
+  const { m, w, h, k, canvas } = rasterMask();
+  const minRun = Math.max(14, Math.round(Math.max(w, h) * 0.012));
+  const mT = transposeMask(m, w, h);
+  const HL = findLines(m, w, h, minRun), VL = findLines(mT, h, w, minRun);
+  const sp = beamSpacing([HL, VL], Math.round(Math.max(w, h) * 0.018));
+  if (!sp) return { k, canvas, beams: [], xs: [], ys: [] };
+  const HS = findStrips(HL, sp), VS = findStrips(VL, sp);
+  let ys = findAxes(HL, w), xs = findAxes(VL, h);
+
+  const nearest = (arr, v, r) => { let best = null, bd = r; for (const a of arr) { const d = Math.abs(a - v); if (d <= bd) { bd = d; best = a; } } return best; };
+  for (const s of HS) { const a = nearest(ys, s.c, sp * 0.25); if (a != null) s.c = a; }
+  for (const s of VS) { const a = nearest(xs, s.c, sp * 0.25); if (a != null) s.c = a; }
+  // แนวกริดที่ใช้ต่อ: เส้นกลางคาน และเส้นอื่นที่ไม่ใช่ขอบคาน
+  const clean = (axes, strips) => {
+    const cs = [...new Set(strips.map(s => s.c))];
+    return [...cs, ...axes.filter(a => !cs.some(c => Math.abs(c - a) <= sp))].sort((u, v) => u - v);
+  };
+  xs = clean(xs, VS); ys = clean(ys, HS);
+
+  // ต่อปลายคานถึงเส้นกลางคานที่มาชน หรือแนวกริด (ระยะศูนย์กลางถึงศูนย์กลาง)
+  const reach = sp * 1.6;
+  const extend = (S1, S2, axes) => {
+    for (const s of S1) {
+      const crossing = S2.filter(t => t.a - reach <= s.c && s.c <= t.b + reach).map(t => t.c);
+      const fix = v => { let r = nearest(crossing, v, reach); if (r == null) r = nearest(axes, v, sp); return r == null ? v : r; };
+      s.a0 = fix(s.a); s.b0 = fix(s.b);
+    }
+  };
+  extend(HS, VS, xs); extend(VS, HS, ys);
+  for (const s of [...HS, ...VS]) { s.a = s.a0; s.b = s.b0; }
+
+  // คานจริงต้องต่อกับคานอื่น ตัดของที่ลอยเดี่ยว เช่น ภาพประกอบมุมแบบ
+  const touches = (s, S2) => S2.some(t => t.a - reach <= s.c && s.c <= t.b + reach && s.a - reach <= t.c && t.c <= s.b + reach);
+  const H2 = HS.filter(s => touches(s, VS) && s.b - s.a > sp), V2 = VS.filter(s => touches(s, HS) && s.b - s.a > sp);
+
+  // แบ่งเป็นช่วง ๆ ตรงจุดตัด เพื่อให้ลบเฉพาะช่วงที่ผิดได้
+  const beams = [];
+  const split = (s, S2, mk) => {
+    const cuts = [s.a, ...S2.filter(t => t.a - 1 <= s.c && s.c <= t.b + 1 && t.c > s.a + sp && t.c < s.b - sp).map(t => t.c), s.b].sort((u, v) => u - v);
+    for (let i = 0; i + 1 < cuts.length; i++) beams.push(mk(cuts[i], cuts[i + 1]));
+  };
+  for (const s of H2) split(s, V2, (a, b) => ({ a: { x: a / k, y: s.c / k }, b: { x: b / k, y: s.c / k } }));
+  for (const s of V2) split(s, H2, (a, b) => ({ a: { x: s.c / k, y: a / k }, b: { x: s.c / k, y: b / k } }));
+  return { k, canvas, beams, xs, ys, sp, HL, VL };
+}
+
+let ocrBase = null;     // โฟลเดอร์ ocr ข้างหน้าเว็บ ถ้าไม่มีจะโหลดจากอินเทอร์เน็ต
+async function findOcrBase() {
+  if (ocrBase !== null) return ocrBase;
+  try {
+    const r = await fetch('ocr/worker-wrap.js', { method: 'HEAD' });
+    ocrBase = r.ok ? new URL('ocr/', location.href).href : '';
+  } catch { ocrBase = ''; }
+  return ocrBase;
+}
+const addScript = src => new Promise((res, rej) => {
+  const s = document.createElement('script');
+  s.src = src; s.onload = res; s.onerror = () => rej(new Error('โหลดตัวอ่านตัวเลขไม่ได้'));
+  document.head.appendChild(s);
+});
+async function loadOcr() {
+  if (window.Tesseract) return;
+  const base = await findOcrBase();
+  await addScript(base ? base + 'tesseract.min.js' : 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+}
+
+// อ่านเลขบอกระยะ แล้วโหวตหาอัตราส่วน: เลขบอกระยะจะอยู่กึ่งกลางระหว่างแนวกริดสองแนว
+async function readScale(det) {
+  await loadOcr();
+  const UP = 2, src = det.canvas, c = document.createElement('canvas');
+  c.width = src.width * UP; c.height = src.height * UP;
+  const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
+  g.drawImage(src, 0, 0, c.width, c.height);
+  // ลบเส้นยาวออกก่อน ไม่ให้เส้นบอกระยะติดกับตัวเลข
+  g.fillStyle = '#fff';
+  for (const l of det.HL) g.fillRect(l.a * UP, (l.p - 2.5) * UP, (l.b - l.a) * UP, 5 * UP);
+  for (const l of det.VL) g.fillRect((l.p - 2.5) * UP, l.a * UP, 5 * UP, (l.b - l.a) * UP);
+  const worker = await Tesseract.createWorker('eng', 1, ocrBase
+    ? { workerPath: ocrBase + 'worker-wrap.js', corePath: ocrBase, workerBlobURL: false } : {});
+  let words = [];
+  try {
+    await worker.setParameters({ tessedit_char_whitelist: '0123456789.', tessedit_pageseg_mode: '11' });
+    const { data } = await worker.recognize(c);
+    words = data.words || [];
+  } finally { await worker.terminate(); }
+  const nums = [];
+  for (const wd of words) {
+    let v;
+    if (/^\d{1,2}\.\d{2}$/.test(wd.text)) v = parseFloat(wd.text);
+    else if (/^\d{3,4}$/.test(wd.text)) v = parseInt(wd.text, 10) / 100;   // จุดทศนิยมหลุดตอนอ่าน
+    else continue;
+    if (v <= 0) continue;
+    nums.push({ v, cx: (wd.bbox.x0 + wd.bbox.x1) / 2 / UP, cy: (wd.bbox.y0 + wd.bbox.y1) / 2 / UP });
+  }
+  const votes = [];
+  const vote = (arr, center, n, axis) => {
+    for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
+      if (Math.abs((arr[i] + arr[j]) / 2 - center) <= 12) votes.push({ r: (arr[j] - arr[i]) / n.v, d: arr[j] - arr[i], n, axis, i, j });
+    }
+  };
+  for (const n of nums) { vote(det.xs, n.cx, n, 'x'); vote(det.ys, n.cy, n, 'y'); }
+  let best = null;
+  for (const a of votes) {
+    const grp = votes.filter(b => Math.abs(b.r / a.r - 1) <= 0.02);
+    const texts = new Set(grp.map(b => b.n)).size;
+    if (!best || texts > best.texts) best = { texts, grp };
+  }
+  if (!best || best.texts < 3) return { nums, ratio: null };
+  // ระยะยาวคลาดเคลื่อนน้อยที่สุด จึงใช้เฉพาะระยะที่ยาวใกล้เคียงระยะยาวสุดที่อ่านได้
+  const maxD = Math.max(...best.grp.map(b => b.d));
+  const longest = best.grp.filter(b => b.d >= 0.7 * maxD);
+  const ratio = longest.reduce((s, b) => s + b.r, 0) / longest.length;
+  // เลขแต่ละตัวผูกกับแนวกริดคู่ที่ตรงที่สุด
+  const pick = new Map();
+  for (const b of votes) {
+    const err = Math.abs(b.d / ratio - b.n.v);
+    if (err > Math.max(0.06, b.n.v * 0.02)) continue;
+    const key = b.axis + nums.indexOf(b.n), old = pick.get(key);
+    if (!old || err < old.err) pick.set(key, { ...b, err });
+  }
+  const edges = { x: [], y: [] };
+  for (const b of pick.values()) edges[b.axis].push({ i: b.i, j: b.j, v: b.n.v });
+  return { nums, ratio, texts: best.texts, edges };
+}
+
+// พิกัดจริงของแนวกริด (เมตร) ไล่จากเลขบอกระยะในแบบ แนวที่ไม่มีเลขจะเป็น null
+function exactCoords(axes, edges, ratio) {
+  const adj = axes.map(() => []);
+  for (const e of edges) { adj[e.i].push([e.j, e.v]); adj[e.j].push([e.i, -e.v]); }
+  adj.forEach(a => a.sort((p, q) => Math.abs(p[1]) - Math.abs(q[1])));
+  const c = axes.map(() => null);
+  for (let s = 0; s < axes.length; s++) {
+    if (c[s] != null || !adj[s].length) continue;
+    let t = -1;                        // ชุดเลขที่ไม่เชื่อมกัน ให้ต่อด้วยระยะวัดปัด 0.05 ม.
+    for (let i = 0; i < axes.length; i++) if (c[i] != null && (t < 0 || Math.abs(axes[i] - axes[s]) < Math.abs(axes[t] - axes[s]))) t = i;
+    c[s] = t < 0 ? 0 : c[t] + Math.round((axes[s] - axes[t]) / ratio / 0.05) * 0.05;
+    const q = [s];
+    while (q.length) {
+      const i = q.shift();
+      for (const [j, v] of adj[i]) if (c[j] == null) { c[j] = c[i] + v; q.push(j); }
+    }
+  }
+  return c;
+}
+// ใช้ความยาวจากเลขในแบบ คานที่ปลายไม่ตรงแนวที่มีเลข ใช้ระยะวัดปัด 0.05 ม.
+function applyPlanDims(det, sc) {
+  const cx = exactCoords(det.xs, sc.edges.x, sc.ratio), cy = exactCoords(det.ys, sc.edges.y, sc.ratio);
+  const near = (axes, c, v) => {
+    let best = -1, bd = det.sp * 1.2;
+    axes.forEach((a, i) => { if (c[i] != null && Math.abs(a - v) <= bd) { bd = Math.abs(a - v); best = i; } });
+    return best;
+  };
+  let exact = 0, est = 0;
+  for (const b of S.beams) {
+    if (!b.auto) continue;
+    const horiz = Math.abs(b.a.y - b.b.y) < Math.abs(b.a.x - b.b.x);
+    const axes = horiz ? det.xs : det.ys, c = horiz ? cx : cy, key = horiz ? 'x' : 'y';
+    const i = near(axes, c, b.a[key] * det.k), j = near(axes, c, b.b[key] * det.k);
+    if (i >= 0 && j >= 0 && i !== j) {
+      b.a[key] = axes[i] / det.k; b.b[key] = axes[j] / det.k;
+      b.plan = Math.round(Math.abs(c[j] - c[i]) * 1000) / 1000; b.est = false; exact++;
+    } else {
+      b.plan = Math.round(dist(b.a, b.b) * S.mPerUnit / 0.05) * 0.05; b.est = true; est++;
+    }
+  }
+  return { exact, est };
+}
+
+async function autoRead() {
+  if (S.kind === 'dxf') {
+    $('layerAdd').click();
+    return;
+  }
+  if (S.kind !== 'raster') return;
+  $('autoBtn').disabled = true;
+  hint('กำลังหาคานบนแปลน...');
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    const det = detectBeams();
+    S.beams = S.beams.filter(b => !b.auto);
+    if (!S.beams.length) S.nextNo = 1;
+    for (const b of det.beams) { addBeam(b.a, b.b); S.beams[S.beams.length - 1].auto = true; }
+    setTool('trace'); renderAll();
+    if (!det.beams.length) { hint('หาคานไม่พบ แปลนนี้อาจไม่ได้เขียนคานเป็นเส้นคู่ ให้ลากคานเอง', true); return; }
+    if (S.scaleFromUser) { hint(`พบ ${det.beams.length} ช่วงคาน · ใช้มาตราส่วนที่ตั้งไว้`); return; }
+    hint(`พบ ${det.beams.length} ช่วงคาน กำลังอ่านเลขบอกระยะเพื่อหามาตราส่วน...`);
+    let sc = null;
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('หมดเวลาอ่านตัวเลข')), 90000));
+    try { sc = await Promise.race([readScale(det), timeout]); } catch (e) { console.warn(e); }
+    if (sc && sc.ratio) {
+      S.mPerUnit = 1 / (sc.ratio / det.k); S.scaleFromUser = false; S.scaleFromOcr = sc.texts;
+      const res = applyPlanDims(det, sc);
+      renderAll();
+      const low = Math.max(S.rw, S.rh) < 1000 ? 'รูปความละเอียดต่ำ อาจหาคานไม่ครบ · ' : '';
+      const estNote = res.est ? `อีก ${res.est} ช่วงประมาณจากรูป · ` : '';
+      hint(`พบ ${det.beams.length} ช่วงคาน ใช้เลขในแบบ ${res.exact} ช่วง · ${estNote}${low}ตรวจเส้นสีส้มกับแบบ ถ้าเกินให้ใช้ "ลบคาน" ถ้าขาดให้ใช้ "ลากคาน"`, !!low);
+    } else {
+      setTool('scale');
+      hint(`พบ ${det.beams.length} ช่วงคาน แต่อ่านเลขบอกระยะไม่ได้ คลิกสองจุดที่รู้ระยะจริงเพื่อตั้งมาตราส่วน`, true);
+    }
+  } finally { $('autoBtn').disabled = false; }
+}
+
+/* ---------- มุมมองและการวาด ---------- */
+function resize() {
+  const r = stage.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.max(1, Math.round(r.width * dpr));
+  cv.height = Math.max(1, Math.round(r.height * dpr));
+  draw();
+}
+const W = () => cv.width / (window.devicePixelRatio || 1);
+const H = () => cv.height / (window.devicePixelRatio || 1);
+
+function fit() {
+  let b;
+  if (S.kind === 'raster') b = { x0: 0, y0: 0, x1: S.rw, y1: S.rh };
+  else if (S.kind === 'dxf') b = S.dxf.bounds;
+  else return;
+  const bw = Math.max(b.x1 - b.x0, 1e-9), bh = Math.max(b.y1 - b.y0, 1e-9), pad = 24;
+  const s = Math.min((W() - pad * 2) / bw, (H() - pad * 2) / bh);
+  S.view.s = s;
+  S.view.ox = (W() - bw * s) / 2 - b.x0 * s;
+  S.view.oy = (H() - bh * s) / 2 - b.y0 * s;
+  draw();
+}
+const toScreen = p => ({ x: p.x * S.view.s + S.view.ox, y: p.y * S.view.s + S.view.oy });
+const toWorld = (x, y) => ({ x: (x - S.view.ox) / S.view.s, y: (y - S.view.oy) / S.view.s });
+
+function zoomAt(f, sx = W() / 2, sy = H() / 2) {
+  const w = toWorld(sx, sy);
+  S.view.s *= f;
+  S.view.ox = sx - w.x * S.view.s; S.view.oy = sy - w.y * S.view.s;
+  draw();
+}
+
+let raf = 0;
+function draw() { if (!raf) raf = requestAnimationFrame(paint); }
+function paint() {
+  raf = 0;
+  const dpr = window.devicePixelRatio || 1, { s, ox, oy } = S.view;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!S.kind) return;
+
+  ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
+  if (S.kind === 'raster') ctx.drawImage(S.raster, 0, 0, S.rw, S.rh);
+  else {
+    ctx.strokeStyle = '#3b474d'; ctx.lineWidth = 1 / s; ctx.stroke(S.dxf.path);
+    if (S.hoverSeg) {
+      const h = S.hoverSeg;
+      ctx.strokeStyle = '#0a7cc2'; ctx.lineWidth = 3 / s;
+      ctx.beginPath(); ctx.moveTo(h.ax, h.ay); ctx.lineTo(h.bx, h.by); ctx.stroke();
+    }
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  if (S.kind === 'dxf') {
+    ctx.fillStyle = '#5f6b70'; ctx.textBaseline = 'alphabetic';
+    for (const t of S.dxf.texts) {
+      const px = t.h * s;
+      if (px < 5) continue;
+      const l = S.dxf.layers.get(t.layer);
+      if (l && !l.visible) continue;
+      const p = toScreen(t);
+      if (p.x < -500 || p.y < -100 || p.x > W() + 100 || p.y > H() + 100) continue;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(t.ang);
+      ctx.font = px + 'px "Noto Sans Thai","Leelawadee UI",Tahoma,sans-serif';
+      ctx.fillText(t.s, 0, 0); ctx.restore();
+    }
+  }
+
+  for (const b of S.beams) {
+    if (!b.a) continue;
+    const p = toScreen(b.a), q = toScreen(b.b), hot = b === S.hotBeam;
+    ctx.strokeStyle = hot ? '#0a7cc2' : '#c8460c'; ctx.lineWidth = hot ? 6 : 4; ctx.lineCap = 'round'; ctx.globalAlpha = .85;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (hot || dist(p, q) >= 30) tag(b.name, (p.x + q.x) / 2, (p.y + q.y) / 2, hot ? '#0a7cc2' : '#c8460c');
+  }
+
+  const m = S.mouse;
+  if (S.tool === 'trace' && S.pending && m) {
+    rubber(S.pending, m, '#c8460c');
+  }
+  if (S.tool === 'scale') {
+    const pts = S.scalePts || [];
+    if (pts.length === 1 && m) rubber(pts[0], m, '#0a7cc2');
+    if (pts.length === 2) rubber(pts[0], pts[1], '#0a7cc2');
+    for (const p of pts) dot(p, '#0a7cc2');
+  }
+  if (S.pending) dot(S.pending, '#c8460c');
+  if (m && S.snapped && S.tool !== 'pick') {
+    const p = toScreen(m);
+    ctx.strokeStyle = '#0a7cc2'; ctx.lineWidth = 2;
+    ctx.strokeRect(p.x - 6, p.y - 6, 12, 12);
+  }
+}
+function rubber(a, b, color) {
+  const p = toScreen(a), q = toScreen(b);
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([7, 5]);
+  ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+  ctx.setLineDash([]);
+  if (S.mPerUnit) tag((dist(a, b) * S.mPerUnit).toFixed(2) + ' ม.', q.x + 34, q.y - 16, color);
+}
+function dot(a, color) {
+  const p = toScreen(a);
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(p.x, p.y, 4.5, 0, 7); ctx.fill();
+}
+function tag(text, x, y, color) {
+  const px = W() < 500 ? 10 : 12, th = px + 6;
+  ctx.font = '600 ' + px + 'px "Noto Sans Thai","Leelawadee UI",Tahoma,sans-serif';
+  const w = ctx.measureText(text).width + 8;
+  ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(x - w / 2, y - th / 2, w, th, 3); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y + 1);
+  ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+}
+
+/* ---------- จุดยึดและการเลือก ---------- */
+function snap(p) {
+  const r = (S.touch ? 24 : 12) / S.view.s; let best = null, bd = r;
+  const test = (x, y) => { const d = Math.hypot(x - p.x, y - p.y); if (d < bd) { bd = d; best = { x, y }; } };
+  if (S.dxf) for (const s of S.dxf.segs) {
+    if (s.curve || !S.dxf.layers.get(s.layer).visible) continue;
+    test(s.ax, s.ay); test(s.bx, s.by); test((s.ax + s.bx) / 2, (s.ay + s.by) / 2);
+  }
+  for (const b of S.beams) if (b.a) { test(b.a.x, b.a.y); test(b.b.x, b.b.y); }
+  return best;
+}
+function ortho(from, p) {
+  return Math.abs(p.x - from.x) >= Math.abs(p.y - from.y) ? { x: p.x, y: from.y } : { x: from.x, y: p.y };
+}
+function nearestSeg(p) {
+  if (!S.dxf) return null;
+  const r = (S.touch ? 20 : 8) / S.view.s; let best = null, bd = r;
+  for (const s of S.dxf.segs) {
+    if (s.curve || !S.dxf.layers.get(s.layer).visible) continue;
+    const dx = s.bx - s.ax, dy = s.by - s.ay, l2 = dx * dx + dy * dy;
+    if (!l2) continue;
+    const t = Math.max(0, Math.min(1, ((p.x - s.ax) * dx + (p.y - s.ay) * dy) / l2));
+    const d = Math.hypot(p.x - s.ax - t * dx, p.y - s.ay - t * dy);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+function nearestBeam(p) {
+  const r = (S.touch ? 24 : 10) / S.view.s; let best = null, bd = r;
+  for (const b of S.beams) {
+    if (!b.a) continue;
+    const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y, l2 = dx * dx + dy * dy;
+    const t = Math.max(0, Math.min(1, ((p.x - b.a.x) * dx + (p.y - b.a.y) * dy) / l2));
+    const d = Math.hypot(p.x - b.a.x - t * dx, p.y - b.a.y - t * dy);
+    if (d < bd) { bd = d; best = b; }
+  }
+  return best;
+}
+function updateMouse(sx, sy) {
+  if (!S.kind) return;
+  let p = toWorld(sx, sy);
+  const from = S.tool === 'trace' ? S.pending : (S.scalePts && S.scalePts.length === 1 ? S.scalePts[0] : null);
+  const sn = snap(p);
+  S.snapped = !!sn;
+  if (sn) p = sn;
+  // มือถือไม่มีปุ่ม Shift จึงล็อกแนวตรงให้เมื่อใกล้แนวนอนหรือแนวตั้ง
+  const dx = Math.abs(p.x - (from ? from.x : 0)), dy = Math.abs(p.y - (from ? from.y : 0));
+  if (from && (S.shift || (S.touch && !sn && Math.min(dx, dy) < 0.07 * Math.max(dx, dy)))) p = ortho(from, p);
+  S.mouse = p;
+  S.hoverSeg = S.tool === 'pick' ? nearestSeg(toWorld(sx, sy)) : null;
+  if (S.tool === 'erase') { S.hotBeam = nearestBeam(toWorld(sx, sy)); S.snapped = false; }
+  draw();
+}
+
+function addBeam(a, b) {
+  S.beams.push({ name: String(S.nextNo++), a, b, manual: null });
+}
+function clickAt() {
+  if (!S.kind || !S.mouse || $('scaleBox').classList.contains('show')) return;
+  const p = { ...S.mouse };
+  if (S.tool === 'trace') {
+    if (!S.pending) S.pending = p;
+    else {
+      if (dist(S.pending, p) > 1e-9) { addBeam(S.pending, p); S.pending = null; renderAll(); }
+    }
+  } else if (S.tool === 'erase') {
+    const h = nearestBeam(p);
+    if (h) { S.beams.splice(S.beams.indexOf(h), 1); S.hotBeam = null; renderAll(); }
+  } else if (S.tool === 'pick') {
+    const h = S.hoverSeg;
+    if (h) { addBeam({ x: h.ax, y: h.ay }, { x: h.bx, y: h.by }); renderAll(); }
+  } else if (S.tool === 'scale') {
+    S.scalePts = S.scalePts && S.scalePts.length === 1 ? [S.scalePts[0], p] : [p];
+    if (S.scalePts.length === 2) {
+      if (dist(S.scalePts[0], S.scalePts[1]) < 1e-9) { S.scalePts = [S.scalePts[0]]; return; }
+      $('scaleBox').classList.add('show');
+      $('scaleVal').value = ''; $('scaleVal').focus();
+    }
+  }
+  updateHint(); draw();
+}
+
+/* ---------- เมาส์ ---------- */
+let down = null, pinch = null;
+const ptrs = new Map();
+const pinchState = () => {
+  const [a, b] = [...ptrs.values()];
+  return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+};
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId);
+  S.touch = e.pointerType === 'touch';
+  ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+  if (ptrs.size === 2) { down = null; pinch = pinchState(); return; }
+  if (ptrs.size > 2) return;
+  down = { x: e.offsetX, y: e.offsetY, ox: S.view.ox, oy: S.view.oy, moved: false, btn: e.button };
+});
+cv.addEventListener('pointermove', e => {
+  S.shift = e.shiftKey;
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+  if (pinch && ptrs.size >= 2) {
+    const p = pinchState();
+    S.view.ox += p.mx - pinch.mx; S.view.oy += p.my - pinch.my;
+    zoomAt(p.d / pinch.d, p.mx, p.my);
+    pinch = p; return;
+  }
+  if (down) {
+    const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
+    if (down.moved || Math.hypot(dx, dy) > (S.touch ? 9 : 4) || down.btn === 1) {
+      down.moved = true; S.view.ox = down.ox + dx; S.view.oy = down.oy + dy; draw(); return;
+    }
+  }
+  updateMouse(e.offsetX, e.offsetY);
+});
+cv.addEventListener('pointercancel', e => { ptrs.delete(e.pointerId); pinch = null; down = null; });
+cv.addEventListener('pointerup', e => {
+  ptrs.delete(e.pointerId);
+  if (pinch) { if (ptrs.size < 2) pinch = null; down = null; return; }
+  const d = down; down = null;
+  if (d && !d.moved && d.btn === 0) { S.shift = e.shiftKey; updateMouse(e.offsetX, e.offsetY); clickAt(); }
+});
+cv.addEventListener('pointerleave', () => { if (!down) { S.mouse = null; S.hoverSeg = null; draw(); } });
+cv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.offsetX, e.offsetY); }, { passive: false });
+cv.addEventListener('contextmenu', e => { e.preventDefault(); cancelStep(); });
+
+function cancelStep() {
+  S.pending = null;
+  if (!$('scaleBox').classList.contains('show')) S.scalePts = null;
+  updateHint(); draw();
+}
+function undo() {
+  if (S.pending) { S.pending = null; draw(); updateHint(); return; }
+  if (S.beams.pop()) renderAll();
+}
+addEventListener('keydown', e => {
+  const typing = /INPUT|SELECT/.test(document.activeElement.tagName);
+  if (e.key === 'Escape') {
+    if ($('scaleBox').classList.contains('show')) closeScale(); else cancelStep();
+  } else if (!typing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+});
+
+/* ---------- ปุ่มและแผงควบคุม ---------- */
+function setTool(t) {
+  S.tool = t; S.pending = null; S.scalePts = null; S.hoverSeg = null;
+  $('scaleBox').classList.remove('show');
+  document.querySelectorAll('.tool').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+  cv.style.cursor = 'crosshair';
+  updateHint(); draw();
+}
+document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+
+const coarse = matchMedia('(pointer:coarse)').matches;
+function hint(msg, warn) {
+  if (coarse) msg = msg.replace(/คลิก/g, 'แตะ').replace(/ \(?(กด )?Shift[^)]*\)?/, '').replace('ลากเพื่อเลื่อนแปลน', 'ลากนิ้วเพื่อเลื่อนแปลน').replace('ล้อเมาส์เพื่อซูม', 'ใช้สองนิ้วเพื่อซูม');
+  const h = $('hint'); h.textContent = msg; h.classList.toggle('warn', !!warn); }
+function updateHint() {
+  if (!S.kind) return hint('เริ่มจากเลือกไฟล์แปลน');
+  if (S.tool === 'scale') {
+    const n = (S.scalePts || []).length;
+    return hint(n === 0 ? 'คลิกจุดแรกของระยะที่รู้ค่าจริง เช่น เส้นบอกระยะ 4.00 ม.' : n === 1 ? 'คลิกจุดที่สอง (กด Shift เพื่อล็อกแนวตรง)' : 'พิมพ์ระยะจริงเป็นเมตร');
+  }
+  if (!S.mPerUnit) return hint('ยังไม่ทราบมาตราส่วน กด "ตั้งมาตราส่วน" แล้วคลิกสองจุดที่รู้ระยะจริง', true);
+  if (S.tool === 'erase') return hint('คลิกคานบนแปลนเพื่อลบ · กด อ่านแบบอัตโนมัติ เพื่อเริ่มใหม่');
+  if (S.tool === 'pick') return hint('คลิกเส้นคานเพื่อเพิ่ม · ลากเพื่อเลื่อนแปลน · ล้อเมาส์เพื่อซูม');
+  hint(S.pending ? 'คลิกปลายคาน (Shift = ล็อกแนวตรง · Esc = ยกเลิก)' : 'คลิกต้นคาน แล้วคลิกปลายคาน · ลากเพื่อเลื่อนแปลน · ล้อเมาส์เพื่อซูม');
+}
+
+function closeScale() { $('scaleBox').classList.remove('show'); S.scalePts = null; updateHint(); draw(); }
+function applyScale() {
+  const v = parseFloat($('scaleVal').value);
+  if (!(v > 0)) { $('scaleVal').focus(); return; }
+  const [a, b] = S.scalePts;
+  S.mPerUnit = v / dist(a, b); S.scaleFromUser = true; S.scaleFromOcr = 0;
+  for (const bm of S.beams) { bm.plan = null; bm.est = false; }
+  $('scaleBox').classList.remove('show');
+  setTool('trace');
+  renderAll();
+}
+$('scaleOk').addEventListener('click', applyScale);
+$('scaleCancel').addEventListener('click', closeScale);
+$('scaleVal').addEventListener('keydown', e => { if (e.key === 'Enter') applyScale(); });
+
+$('openBtn').addEventListener('click', () => $('file').click());
+$('emptyOpen').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) openFile(f); });
+['dragenter', 'dragover'].forEach(n => stage.addEventListener(n, e => { e.preventDefault(); stage.classList.add('dragover'); }));
+['dragleave', 'drop'].forEach(n => stage.addEventListener(n, e => { e.preventDefault(); stage.classList.remove('dragover'); }));
+stage.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) openFile(f); });
+
+$('pageSel').addEventListener('change', async e => {
+  const n = +e.target.value;
+  if (!await startFresh()) { e.target.value = String(S.page); return; }
+  await showPdfPage(n); fit(); renderAll(); autoRead();
+});
+$('unitSel').addEventListener('change', e => {
+  S.mPerUnit = parseFloat(e.target.value); S.scaleFromUser = false; S.unitGuessed = false; renderAll();
+});
+$('wCm').addEventListener('input', renderTotals);
+$('dCm').addEventListener('input', renderTotals);
+
+$('layerAdd').addEventListener('click', () => {
+  const name = $('layerSel').value, paired = $('pairChk').checked;
+  const { out, skipped } = beamsFromLayer(name, paired);
+  for (const b of out) addBeam(b.a, b.b);
+  $('layerNote').textContent = out.length
+    ? `เพิ่ม ${out.length} คาน` + (skipped ? ` · มี ${skipped} เส้นที่จับคู่ไม่ได้ กรุณาตรวจบนแปลนและลากเพิ่มเอง` : '') + ' · ตรวจเส้นสีส้มให้ตรงกับคานจริงทุกครั้ง'
+    : (paired ? 'ไม่พบเส้นคู่ใน Layer นี้ ลองเอาเครื่องหมายเส้นคู่ออก หรือตรวจขนาดกว้างของคาน' : 'Layer นี้ไม่มีเส้นตรง');
+  renderAll();
+});
+
+$('manualAdd').addEventListener('click', addManual);
+$('manualLen').addEventListener('keydown', e => { if (e.key === 'Enter') addManual(); });
+function addManual() {
+  const v = parseFloat($('manualLen').value);
+  if (!(v > 0)) { $('manualLen').focus(); return; }
+  S.beams.push({ name: String(S.nextNo++), a: null, b: null, manual: v });
+  $('manualLen').value = ''; $('manualLen').focus();
+  renderAll();
+}
+$('autoBtn').addEventListener('click', autoRead);
+document.querySelectorAll('.chips').forEach(box => box.addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  const inp = $(box.dataset.for); inp.value = e.target.textContent; renderTotals();
+}));
+$('undoBtn').addEventListener('click', undo);
+$('zoomIn').addEventListener('click', () => zoomAt(1.3));
+$('zoomOut').addEventListener('click', () => zoomAt(1 / 1.3));
+$('fitBtn').addEventListener('click', fit);
+$('clearBtn').addEventListener('click', async () => {
+  if (await askBox('ล้างรายการคานทั้งหมด?')) { S.beams = []; S.nextNo = 1; S.pending = null; $('layerNote').textContent = ''; renderAll(); }
+});
+$('csvBtn').addEventListener('click', exportCSV);
+
+async function saveFile(name, blob) {
+  const note = $('exportNote');
+  const dl = window.claude ? await claude.use('downloads') : null;
+  if (dl) {
+    try { await dl.save({ filename: name, data: blob }); note.textContent = 'บันทึก ' + name + ' แล้ว'; }
+    catch (e) { note.textContent = e && e.code === 'declined' ? 'ยกเลิกการดาวน์โหลด' : 'ดาวน์โหลดไม่สำเร็จ ลองอีกครั้ง'; }
+    return;
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+const RF = (w, px) => w + ' ' + px + 'px "Noto Sans Thai","Leelawadee UI","Sarabun",Tahoma,sans-serif';
+function drawPlanTo(g, x, y, w, h) {
+  g.strokeStyle = '#d9d3c5'; g.lineWidth = 2; g.strokeRect(x, y, w, h);
+  if (!S.kind) { g.fillStyle = '#5f6b70'; g.font = RF(400, 26); g.textAlign = 'center'; g.fillText('ไม่มีแปลน (พิมพ์ความยาวเอง)', x + w / 2, y + h / 2); g.textAlign = 'left'; return; }
+  const b = S.kind === 'raster' ? { x0: 0, y0: 0, x1: S.rw, y1: S.rh } : S.dxf.bounds;
+  const pad = 10, s = Math.min((w - pad * 2) / (b.x1 - b.x0), (h - pad * 2) / (b.y1 - b.y0));
+  const ox = x + (w - (b.x1 - b.x0) * s) / 2 - b.x0 * s, oy = y + (h - (b.y1 - b.y0) * s) / 2 - b.y0 * s;
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  if (S.kind === 'raster') { g.imageSmoothingQuality = 'high'; g.drawImage(S.raster, ox, oy, S.rw * s, S.rh * s); }
+  else { g.save(); g.translate(ox, oy); g.scale(s, s); g.strokeStyle = '#3b474d'; g.lineWidth = 1 / s; g.stroke(S.dxf.path); g.restore(); }
+  g.lineCap = 'round';
+  const pts = S.beams.filter(q => q.a).map(q => ({ q, p: { x: q.a.x * s + ox, y: q.a.y * s + oy }, e: { x: q.b.x * s + ox, y: q.b.y * s + oy } }));
+  g.strokeStyle = 'rgba(200,70,12,.8)'; g.lineWidth = 5;
+  for (const { p, e } of pts) { g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(e.x, e.y); g.stroke(); }
+  g.font = RF(600, 15); g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const { q, p, e } of pts) {
+    const mx = (p.x + e.x) / 2, my = (p.y + e.y) / 2, tw = g.measureText(q.name).width + 8;
+    g.fillStyle = '#c8460c'; g.fillRect(mx - tw / 2, my - 10, tw, 20);
+    g.fillStyle = '#fff'; g.fillText(q.name, mx, my + 1);
+  }
+  g.restore(); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+}
+
+// รายงาน A4 วาดเป็นภาพทั้งหมด จึงแสดงภาษาไทยเหมือนกันทั้งภาพ PDF และงานพิมพ์
+function reportPages() {
+  const PW = 1240, PH = 1754, M = 70, pages = [];
+  let g, y;
+  const newPage = () => {
+    const c = document.createElement('canvas'); c.width = PW; c.height = PH;
+    g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, PW, PH);
+    pages.push(c); y = M;
+  };
+  const text = (s, x, yy, font, color = '#1e2a30', align = 'left') => { g.font = font; g.fillStyle = color; g.textAlign = align; g.fillText(s, x, yy); g.textAlign = 'left'; };
+  const w = widthM(), d = depthM(), area = w * d;
+  const groups = summaryGroups().filter(q => q[1] || q[0] !== 'อื่น ๆ');
+  const n = groups.reduce((s, q) => s + q[1], 0), L = groups.reduce((s, q) => s + q[2], 0);
+
+  newPage();
+  text('รายการคำนวณคอนกรีตเทคาน', M, y + 34, RF(700, 42));
+  y += 66;
+  const when = new Date().toLocaleDateString('th-TH', { dateStyle: 'long' });
+  text($('fileName').textContent + ' · ' + when, M, y + 18, RF(400, 24), '#5f6b70');
+  y += 44;
+  drawPlanTo(g, M, y, PW - M * 2, 760);
+  y += 790;
+  g.fillStyle = '#1e2a30'; g.fillRect(M, y, PW - M * 2, 120);
+  text('ปริมาณคอนกรีตเทคานรวม', M + 28, y + 46, RF(400, 26), '#fff');
+  text('ขนาดคาน กว้าง ' + (w * 100).toFixed(0) + ' × สูง ' + (d * 100).toFixed(0) + ' ซม.', M + 28, y + 92, RF(400, 26), '#fff');
+  text((L * area).toFixed(3) + ' คิว', PW - M - 28, y + 80, RF(700, 62), '#fff', 'right');
+  y += 160;
+
+  const sumCols = [[M + 10, 'left'], [M + 520, 'right'], [M + 800, 'right'], [PW - M - 10, 'right']];
+  const sumRow = (vals, font, line) => {
+    vals.forEach((v, i) => text(v, sumCols[i][0], y + 30, font, '#1e2a30', sumCols[i][1]));
+    y += 46;
+    g.strokeStyle = line || '#e6dfd0'; g.lineWidth = line ? 3 : 1; g.beginPath(); g.moveTo(M, y); g.lineTo(PW - M, y); g.stroke();
+  };
+  text('สรุปผลรวมทั้งหมด', M, y + 26, RF(700, 30)); y += 44;
+  sumRow(['แนวคาน', 'จำนวน', 'ยาวรวม (ม.)', 'ลบ.ม.'], RF(500, 24));
+  groups.forEach((q, i) => sumRow([q[0], String(q[1]), q[2].toFixed(2), (q[2] * area).toFixed(3)], RF(400, 26), i === groups.length - 1 ? '#1e2a30' : null));
+  sumRow(['รวมทั้งหมด', String(n), L.toFixed(2), (L * area).toFixed(3)], RF(700, 26));
+
+  newPage();
+  const cols = [[M + 10, 'left'], [M + 330, 'right'], [M + 520, 'right'], [M + 700, 'right'], [M + 900, 'right'], [PW - M - 10, 'right']];
+  const header = () => {
+    text('รายการคาน', M, y + 30, RF(700, 32)); y += 54;
+    ['คาน', 'ยาว (ม.)', 'กว้าง (ม.)', 'สูง (ม.)', 'ลบ.ม.', 'ที่มา'].forEach((v, i) => text(v, cols[i][0], y + 24, RF(500, 22), '#5f6b70', cols[i][1]));
+    y += 36;
+    g.strokeStyle = '#1e2a30'; g.lineWidth = 2; g.beginPath(); g.moveTo(M, y); g.lineTo(PW - M, y); g.stroke();
+  };
+  header();
+  const src = b => b.manual != null ? 'พิมพ์เอง' : b.est ? 'ประมาณ' : b.plan != null ? 'ตามแบบ' : 'วัดจากแปลน';
+  for (const b of S.beams) {
+    const len = beamLength(b); if (len == null) continue;
+    if (y + 32 > PH - 110) { newPage(); header(); }
+    [b.name, len.toFixed(2), w.toFixed(2), d.toFixed(2), (len * area).toFixed(3), src(b)].forEach((v, i) => text(v, cols[i][0], y + 24, RF(400, 22), '#1e2a30', cols[i][1]));
+    y += 32;
+    g.strokeStyle = '#eee7d8'; g.lineWidth = 1; g.beginPath(); g.moveTo(M, y); g.lineTo(PW - M, y); g.stroke();
+  }
+  if (y + 44 > PH - 90) { newPage(); header(); }
+  ['รวม', L.toFixed(2), '', '', (L * area).toFixed(3), ''].forEach((v, i) => text(v, cols[i][0], y + 32, RF(700, 24), '#1e2a30', cols[i][1]));
+
+  pages.forEach((c, i) => {
+    const q = c.getContext('2d'); q.font = RF(400, 20); q.fillStyle = '#5f6b70'; q.textAlign = 'right';
+    q.fillText('หน้า ' + (i + 1) + ' / ' + pages.length, PW - M, PH - 40);
+  });
+  return pages;
+}
+
+async function buildPdf(pages) {
+  const enc = new TextEncoder(), chunks = [], xref = []; let off = 0;
+  const put = d => { const b = typeof d === 'string' ? enc.encode(d) : d; chunks.push(b); off += b.length; };
+  put('%PDF-1.4\n');
+  const obj = (id, dict, stream) => {
+    xref[id] = off;
+    put(id + ' 0 obj\n' + dict + '\n');
+    if (stream) { put('stream\n'); put(stream); put('\nendstream\n'); }
+    put('endobj\n');
+  };
+  const kids = pages.map((_, i) => (3 + i * 3) + ' 0 R').join(' ');
+  obj(1, '<</Type/Catalog/Pages 2 0 R>>');
+  obj(2, '<</Type/Pages/Kids[' + kids + ']/Count ' + pages.length + '>>');
+  const PWpt = 595.28, PHpt = 841.89;
+  for (let i = 0; i < pages.length; i++) {
+    const id = 3 + i * 3, c = pages[i];
+    const jpg = new Uint8Array(await (await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9))).arrayBuffer());
+    const content = enc.encode('q ' + PWpt + ' 0 0 ' + PHpt + ' 0 0 cm /Im0 Do Q');
+    obj(id, '<</Type/Page/Parent 2 0 R/MediaBox[0 0 ' + PWpt + ' ' + PHpt + ']/Resources<</XObject<</Im0 ' + (id + 1) + ' 0 R>>>>/Contents ' + (id + 2) + ' 0 R>>');
+    obj(id + 1, '<</Type/XObject/Subtype/Image/Width ' + c.width + '/Height ' + c.height + '/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length ' + jpg.length + '>>', jpg);
+    obj(id + 2, '<</Length ' + content.length + '>>', content);
+  }
+  const start = off, count = 3 + pages.length * 3;
+  let x = 'xref\n0 ' + count + '\n0000000000 65535 f \n';
+  for (let i = 1; i < count; i++) x += String(xref[i]).padStart(10, '0') + ' 00000 n \n';
+  put(x + 'trailer\n<</Size ' + count + '/Root 1 0 R>>\nstartxref\n' + start + '\n%%EOF');
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+
+async function exportPdf() { await saveFile('คิวปูนคาน.pdf', await buildPdf(reportPages())); }
+async function exportPng() {
+  const pages = reportPages(), c = document.createElement('canvas');
+  c.width = pages[0].width; c.height = pages[0].height * pages.length;
+  const g = c.getContext('2d');
+  pages.forEach((p, i) => g.drawImage(p, 0, i * p.height));
+  await saveFile('คิวปูนคาน.png', await new Promise(r => c.toBlob(r, 'image/png')));
+}
+async function printReport() {
+  const area = $('printArea');
+  const imgs = reportPages().map(c => { const i = new Image(); i.src = c.toDataURL('image/jpeg', 0.92); return i; });
+  area.replaceChildren(...imgs);
+  await Promise.all(imgs.map(i => i.decode()));
+  window.print();
+}
+if (window.self !== window.top) {        // ในหน้าลิงก์ของ Claude สั่งพิมพ์ตรงไม่ได้ ให้ใช้ PDF แทน
+  $('printBtn').hidden = true;
+  $('exportNote').textContent = 'รายงานมีแปลน ตารางสรุป และรายการคานทุกช่วง ถ้าจะพิมพ์ให้ดาวน์โหลด PDF แล้วสั่งพิมพ์จากไฟล์';
+}
+$('printBtn').addEventListener('click', printReport);
+$('pdfBtn').addEventListener('click', exportPdf);
+$('pngBtn').addEventListener('click', exportPng);
+
+function exportCSV() {
+  const w = widthM(), d = depthM(), q = s => `"${String(s).replace(/"/g, '""')}"`;
+  const rows = [['ลำดับ', 'ชื่อคาน', 'ยาว (ม.)', 'กว้าง (ม.)', 'สูง (ม.)', 'ปริมาตร (ลบ.ม.)'].map(q).join(',')];
+  let sumL = 0, sumV = 0;
+  S.beams.forEach((b, i) => {
+    const L = beamLength(b); if (L == null) return;
+    const v = L * w * d; sumL += L; sumV += v;
+    rows.push([i + 1, q(b.name), L.toFixed(3), w.toFixed(3), d.toFixed(3), v.toFixed(4)].join(','));
+  });
+  rows.push(['', q('รวม'), sumL.toFixed(3), '', '', sumV.toFixed(4)].join(','));
+  saveFile('คิวปูนคาน.csv', new Blob([String.fromCharCode(0xFEFF) + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+}
+
+/* ---------- แสดงผล ---------- */
+function renderLayers() {
+  const box = $('layerList'), sel = $('layerSel'), d = S.dxf;
+  box.replaceChildren(); sel.replaceChildren();
+  const names = [...d.layers.keys()].sort((a, b) => a.localeCompare(b));
+  for (const n of names) {
+    const l = d.layers.get(n), lab = document.createElement('label'), c = document.createElement('input');
+    const nm = document.createElement('span'), cnt = document.createElement('span');
+    c.type = 'checkbox'; c.checked = l.visible;
+    c.addEventListener('change', () => { l.visible = c.checked; rebuildPath(); draw(); });
+    nm.className = 'nm'; nm.textContent = n; nm.title = n;
+    cnt.className = 'cnt'; cnt.textContent = l.count.toLocaleString();
+    lab.append(c, nm, cnt); box.append(lab);
+    sel.add(new Option(n, n));
+  }
+  const guess = names.find(n => /beam|คาน|^b[-_ ]/i.test(n));
+  if (guess) sel.value = guess;
+  d.guess = guess || null;
+  $('layerNote').textContent = '';
+}
+
+function summaryGroups() {
+  const groups = [['แนวนอน', 0, 0], ['แนวตั้ง', 0, 0], ['อื่น ๆ', 0, 0]];
+  for (const b of S.beams) {
+    const L = beamLength(b); if (L == null) continue;
+    const dx = b.a ? Math.abs(b.a.x - b.b.x) : 0, dy = b.a ? Math.abs(b.a.y - b.b.y) : 0;
+    const g = !b.a ? groups[2] : dy < dx * 0.02 ? groups[0] : dx < dy * 0.02 ? groups[1] : groups[2];
+    g[1]++; g[2] += L;
+  }
+  return groups;
+}
+function renderSummary() {
+  const groups = summaryGroups();
+  const area = widthM() * depthM(), body = $('sumRows');
+  const row = (name, n, L, cls) => {
+    const tr = document.createElement('tr'); if (cls) tr.className = cls;
+    [[name, ''], [String(n), 'r'], [L.toFixed(2), 'r'], [(L * area).toFixed(3), 'r']].forEach(([v, c]) => {
+      const td = document.createElement('td'); td.textContent = v; td.className = c; tr.append(td);
+    });
+    body.append(tr);
+  };
+  body.replaceChildren();
+  for (const [name, n, L] of groups) if (n || name !== 'อื่น ๆ') row(name, n, L);
+  row('รวมทั้งหมด', groups.reduce((s, g) => s + g[1], 0), groups.reduce((s, g) => s + g[2], 0), 'all');
+  $('sumNote').textContent = `หน้าตัด ${widthM().toFixed(2)} × ${depthM().toFixed(2)} ม. = ${area.toFixed(4)} ตร.ม.`;
+}
+
+function renderTotals() {
+  document.querySelectorAll('.chips').forEach(box => {
+    const v = parseFloat($(box.dataset.for).value);
+    box.querySelectorAll('button').forEach(b => b.classList.toggle('on', parseFloat(b.textContent) === v));
+  });
+  let sumL = 0, sumV = 0, missing = 0;
+  S.beams.forEach((b, i) => {
+    const L = beamLength(b);
+    if (L == null) { missing++; return; }
+    sumL += L; sumV += L * widthM() * depthM();
+  });
+  $('total').firstChild.nodeValue = sumV.toFixed(3);
+  renderSummary();
+  const w = widthM().toFixed(2), d = depthM().toFixed(2);
+  $('formula').textContent = !S.beams.length ? 'ยังไม่มีคาน'
+    : missing ? `มี ${missing} คานที่ยังไม่รวม เพราะยังไม่ได้ตั้งมาตราส่วน`
+    : `${S.beams.length} คาน · ยาวรวม ${sumL.toFixed(2)} ม. × ${w} × ${d} ม.`;
+  document.querySelectorAll('#rows tr').forEach((tr, i) => {
+    const v = beamVolume(S.beams[i]);
+    tr.querySelector('.vol').textContent = v == null ? '—' : v.toFixed(3);
+  });
+}
+
+function renderAll() {
+  const body = $('rows'); body.replaceChildren();
+  S.beams.forEach(b => {
+    const tr = document.createElement('tr');
+    const td = (cls) => { const c = document.createElement('td'); if (cls) c.className = cls; tr.append(c); return c; };
+    const name = document.createElement('input');
+    name.type = 'text'; name.value = b.name; name.setAttribute('aria-label', 'ชื่อคาน');
+    name.addEventListener('input', () => { b.name = name.value; draw(); });
+    td().append(name);
+
+    const len = document.createElement('input');
+    len.type = 'number'; len.min = '0'; len.step = 'any'; len.className = 'len'; len.setAttribute('aria-label', 'ความยาวคาน (เมตร)');
+    const L = beamLength(b);
+    len.value = L == null ? '' : L.toFixed(2);
+    len.placeholder = '—';
+    if (b.est && b.manual == null) { len.classList.add('est'); len.title = 'ไม่มีเลขบอกระยะในแบบ ค่านี้ประมาณจากรูป ปัดเป็น 0.05 ม.'; }
+    if (b.manual != null && b.a) { len.classList.add('edited'); len.title = 'แก้ค่าเอง ลบค่าออกเพื่อกลับไปใช้ระยะจากแปลน'; }
+    len.addEventListener('change', () => {
+      const v = parseFloat(len.value);
+      if (v > 0) b.manual = v;
+      else if (b.a) b.manual = null;
+      renderAll();
+    });
+    td('r').append(len);
+
+    td('r vol');
+    const x = document.createElement('button');
+    x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', 'ลบ ' + b.name);
+    x.addEventListener('click', () => { S.beams.splice(S.beams.indexOf(b), 1); S.hotBeam = null; renderAll(); });
+    td().append(x);
+
+    tr.addEventListener('mouseenter', () => { S.hotBeam = b; tr.classList.add('hot'); draw(); });
+    tr.addEventListener('mouseleave', () => { S.hotBeam = null; tr.classList.remove('hot'); draw(); });
+    body.append(tr);
+  });
+  const has = S.beams.length > 0;
+  $('tbl').hidden = !has; $('noBeams').hidden = has;
+  const noData = !has || S.beams.every(b => beamLength(b) == null);
+  for (const id of ['csvBtn', 'pdfBtn', 'pngBtn', 'printBtn']) $(id).disabled = noData;
+  $('clearBtn').disabled = !has;
+
+  const n = $('scaleNote');
+  n.className = 'note';
+  if (!S.kind) n.textContent = 'ยังไม่ได้ตั้งมาตราส่วน';
+  else if (S.scaleFromUser) { n.textContent = 'ตั้งมาตราส่วนจากระยะจริงแล้ว'; n.classList.add('good'); }
+  else if (S.scaleFromOcr) { n.textContent = `อ่านมาตราส่วนจากเลขบอกระยะ ${S.scaleFromOcr} ค่าในแบบ · เทียบความยาวกับแบบอีกครั้ง`; n.classList.add('good'); }
+  else if (S.kind === 'dxf' && S.unitGuessed) { n.textContent = 'ไฟล์ไม่ระบุหน่วย ระบบเดาให้ กรุณาตรวจว่าหน่วยถูกต้อง'; n.classList.add('bad'); }
+  else if (S.kind === 'dxf') { n.textContent = 'ใช้หน่วยจากไฟล์ DXF'; n.classList.add('good'); }
+  else { n.textContent = 'ยังไม่ได้ตั้งมาตราส่วน'; n.classList.add('bad'); }
+
+  renderTotals(); updateHint(); draw();
+}
+
+addEventListener('beforeunload', e => { if (S.beams.length) { e.preventDefault(); e.returnValue = ''; } });
+new ResizeObserver(resize).observe(stage);
+resize(); renderAll();
+</script>
+</body>
+</html>
