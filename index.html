@@ -642,7 +642,7 @@ function findLines(m, w, h, minRun) {
     }
     const next = [];
     for (const [a, b] of runs) {
-      let seg = active.find(s => !s.t && Math.min(b, s.b) - Math.max(a, s.a) > 0.5 * Math.min(b - a, s.b - s.a));
+      let seg = active.find(s => !s.t && Math.min(b, s.b) - Math.max(a, s.a) > 0.5 * Math.max(b - a, s.b - s.a));   // ไม่รวมเส้นยาวกับก้อนเสาที่ทับกัน
       if (seg) { seg.t = true; seg.a = Math.min(seg.a, a); seg.b = Math.max(seg.b, b); seg.sum += y * (b - a); seg.n += b - a; seg.y1 = y; }
       else seg = { a, b, sum: y * (b - a), n: b - a, y0: y, y1: y, t: true };
       next.push(seg);
@@ -680,10 +680,15 @@ function beamSpacing(all, maxW) {
   const sm = hist.map((v, i) => v + (hist[i - 1] || 0) + (hist[i + 1] || 0));
   const top = Math.max(...sm);
   if (!top) return null;
-  for (let d = maxW; d >= 3; d--) {   // ถ้ามีเส้นกริดกลางคาน ให้ใช้ระยะขอบถึงขอบ ไม่ใช่ขอบถึงกลาง
-    if (sm[d] >= 0.3 * top && sm[d] >= sm[d - 1] && sm[d] >= (sm[d + 1] || 0)) return d;
+  let best = 3;
+  for (let d = 3; d <= maxW; d++) if (sm[d] > sm[best]) best = d;
+  // ถ้าระยะที่พบมากสุดคือขอบคานถึงเส้นกริดกลางคาน ให้ใช้ระยะขอบถึงขอบซึ่งเป็นสองเท่า
+  for (let d = 2 * best - 2; d <= Math.min(maxW, 2 * best + 2); d++) if (sm[d] >= 0.3 * sm[best]) {
+    let peak = d;
+    for (let e = d; e <= Math.min(maxW, 2 * best + 2); e++) if (sm[e] > sm[peak]) peak = e;
+    return peak;
   }
-  return null;
+  return best;
 }
 function findStrips(L, sp) {
   const raw = [], tol = Math.max(1.5, sp * 0.2);
@@ -930,7 +935,7 @@ function resize() {
   const r = stage.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   cv.width = Math.max(1, Math.round(r.width * dpr));
   cv.height = Math.max(1, Math.round(r.height * dpr));
-  draw();
+  if (S.kind && !S.userView) fit(); else draw();
 }
 const W = () => cv.width / (window.devicePixelRatio || 1);
 const H = () => cv.height / (window.devicePixelRatio || 1);
@@ -942,6 +947,8 @@ function fit() {
   else return;
   const bw = Math.max(b.x1 - b.x0, 1e-9), bh = Math.max(b.y1 - b.y0, 1e-9), pad = 24;
   const s = Math.min((W() - pad * 2) / bw, (H() - pad * 2) / bh);
+  if (!(s > 0)) return;             // จอยังไม่มีขนาด รอ resize
+  S.userView = false;
   S.view.s = s;
   S.view.ox = (W() - bw * s) / 2 - b.x0 * s;
   S.view.oy = (H() - bh * s) / 2 - b.y0 * s;
@@ -951,6 +958,7 @@ const toScreen = p => ({ x: p.x * S.view.s + S.view.ox, y: p.y * S.view.s + S.vi
 const toWorld = (x, y) => ({ x: (x - S.view.ox) / S.view.s, y: (y - S.view.oy) / S.view.s });
 
 function zoomAt(f, sx = W() / 2, sy = H() / 2) {
+  S.userView = true;
   const w = toWorld(sx, sy);
   S.view.s *= f;
   S.view.ox = sx - w.x * S.view.s; S.view.oy = sy - w.y * S.view.s;
@@ -1149,7 +1157,7 @@ cv.addEventListener('pointermove', e => {
   if (down) {
     const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
     if (down.moved || Math.hypot(dx, dy) > (S.touch ? 9 : 4) || down.btn === 1) {
-      down.moved = true; S.view.ox = down.ox + dx; S.view.oy = down.oy + dy; draw(); return;
+      down.moved = true; S.userView = true; S.view.ox = down.ox + dx; S.view.oy = down.oy + dy; draw(); return;
     }
   }
   updateMouse(e.offsetX, e.offsetY);
