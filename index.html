@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>คำนวณคิวปูนเทคาน</title>
+<title>โปรแกรมคิดงานคาน</title>
 <style>
 :root{
   --paper:#f5f2ea; --card:#fffdf8; --ink:#1e2a30; --muted:#5f6b70; --line:#d9d3c5;
@@ -89,6 +89,28 @@ tr.hot{background:#fdeee3}
 #askBox p{margin:0 0 12px}
 #askBox .row{justify-content:flex-end}
 #printArea{display:none}
+body[data-mode=concrete] .fw,body[data-mode=formwork] .cc{display:none!important}
+#menu{position:fixed;inset:0;z-index:30;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
+#menu>div{width:100%;max-width:560px}
+#menu h1{margin:0 0 4px;font-size:28px}
+#menu p.sub{margin:0 0 18px;color:var(--muted)}
+#menu table{background:var(--card);border:1px solid var(--line);border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden}
+#menu td{padding:0;border:none}
+#menu tr+tr td{border-top:1px solid var(--line)}
+#menu button{width:100%;text-align:left;border:none;border-radius:0;background:none;padding:16px 18px;display:block}
+#menu button:hover{background:#f7efe2}
+#menu b{display:block;font-size:19px}
+#menu span{color:var(--muted);font-size:14px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:18px;height:4px;margin-right:4px;vertical-align:middle}
+.fwt td,.fwt th{padding:3px 4px}
+.fwt tr.all td{font-weight:700;border-top:2px solid var(--ink)}
+.fwt tr.hot{background:#fdeee3}
+#runRows input{width:66px;text-align:right;padding:2px 4px;border-color:transparent;background:transparent}
+#runRows input:hover,#runRows input:focus{border-color:var(--line);background:#fff}
+#runRows input.edited,#runRows select.edited{color:var(--accent);font-weight:600}
+#runRows select{padding:2px;border-color:transparent;background:transparent}
+#runRows select:hover,#runRows select:focus{border-color:var(--line);background:#fff}
 @media (max-width:900px){
   html,body{height:auto}
   body{display:block;height:auto;min-height:100dvh;overflow:auto}
@@ -115,9 +137,20 @@ tr.hot{background:#fdeee3}
 }
 </style>
 </head>
-<body>
+<body data-mode="concrete">
+<div id="menu">
+  <div>
+    <h1>โปรแกรมคิดงานคาน</h1>
+    <p class="sub">เลือกงานที่ต้องการคำนวณ</p>
+    <table>
+      <tr><td><button id="goConcrete"><b>คิดปูนคาน</b><span>ปริมาณคอนกรีตเทคาน (คิว)</span></button></td></tr>
+      <tr><td><button id="goFormwork"><b>คิดไม้แบบ</b><span>ความยาวไม้แบบข้างคานและรายการตัดไม้</span></button></td></tr>
+    </table>
+  </div>
+</div>
 <div id="left">
   <div id="toolbar" role="toolbar" aria-label="เครื่องมือ">
+    <button id="homeBtn">หน้าหลัก</button>
     <button class="primary" id="autoBtn" disabled title="หาคานและมาตราส่วนจากแปลนให้เอง">อ่านแบบอัตโนมัติ</button>
     <button class="tool" data-tool="trace" aria-pressed="true" title="คลิกจุดเริ่มและจุดสิ้นสุดของคาน">ลากคาน</button>
     <button class="tool" data-tool="pick" aria-pressed="false" id="pickBtn" disabled title="คลิกเส้นในไฟล์ DXF เพื่อเพิ่มเป็นคาน">เลือกเส้น</button>
@@ -147,10 +180,15 @@ tr.hot{background:#fdeee3}
 </div>
 
 <aside id="right">
-  <div id="result">
+  <div id="result" class="cc">
     <div class="lbl">ปริมาณคอนกรีตเทคานรวม</div>
     <div id="total">0.000<small>คิว (ลบ.ม.)</small></div>
     <div id="formula">ยังไม่มีคาน</div>
+  </div>
+  <div id="fwResult" class="fw" style="background:var(--ink);color:#fff;padding:14px 16px">
+    <div style="font-size:13.5px;opacity:.8">ไม้แบบข้างคานรวม</div>
+    <div id="fwTotal" style="font-size:44px;line-height:1.15;font-weight:700;font-variant-numeric:tabular-nums">0.00<small style="font-size:18px;font-weight:500;margin-left:6px">เมตร</small></div>
+    <div id="fwFormula" style="font-size:13.5px;opacity:.85">ยังไม่มีคาน</div>
   </div>
   <div id="scroll">
     <section>
@@ -177,7 +215,7 @@ tr.hot{background:#fdeee3}
       <p class="note" id="scaleNote">ยังไม่ได้ตั้งมาตราส่วน</p>
     </section>
 
-    <section>
+    <section class="cc">
       <h3>ขนาดหน้าตัดคาน</h3>
       <div class="row dims">
         <span class="dl">กว้าง</span>
@@ -204,7 +242,39 @@ tr.hot{background:#fdeee3}
       <p class="note" id="layerNote"></p>
     </section>
 
-    <section>
+    <section class="fw">
+      <h3>ค่าที่ใช้คิดไม้แบบ</h3>
+      <div class="row dims"><label>กว้างเสา/คาน <input id="fwW" type="number" min="0" step="any" value="20"> ซม.</label></div>
+      <div class="row dims"><label>ไม้แบบหนา <input id="fwT" type="number" min="0" step="any" value="2.5"> ซม.</label></div>
+      <div class="row dims"><label>ความสูงไม้แบบข้าง <input id="fwH" type="number" min="0" step="any" value="40"> ซม.</label></div>
+      <p class="note" id="fwRule"></p>
+      <div class="legend"><span><i style="background:#c8460c"></i>ติด 2 ปลาย</span><span><i style="background:#2f6fb0"></i>ติด 1 ปลาย</span><span><i style="background:#1f7a4d"></i>ไม่ติด</span></div>
+    </section>
+
+    <section class="fw">
+      <h3>รายการตัดไม้</h3>
+      <table class="fwt"><thead><tr><th>ยาว (ม.)</th><th class="r">จำนวน</th><th class="r">รวม (ม.)</th></tr></thead><tbody id="cutRows"></tbody></table>
+      <p class="note" id="fwNoteSum"></p>
+    </section>
+
+    <section class="fw">
+      <h3>ไม้แบบแต่ละด้าน</h3>
+      <p class="note" style="margin:0 0 6px">แก้ความยาวหรือจำนวนปลายที่ติดในตารางได้ ลบตัวเลขออกเพื่อกลับไปใช้สูตร ใส่ 0 ถ้าไม่ใช้ไม้ด้านนั้น</p>
+      <table class="fwt"><thead><tr><th>คาน</th><th>ด้าน</th><th class="r">ติด</th><th class="r">กลางเสา</th><th class="r">ไม้แบบ</th></tr></thead><tbody id="runRows"></tbody></table>
+    </section>
+
+    <section class="fw">
+      <h3>พิมพ์และดาวน์โหลด</h3>
+      <div class="row">
+        <button id="fwPrint" disabled>พิมพ์</button>
+        <button id="fwPdf" class="primary" disabled>ดาวน์โหลด PDF</button>
+        <button id="fwPng" disabled>ดาวน์โหลดรูปภาพ</button>
+        <button id="fwCsv" disabled>CSV (Excel)</button>
+      </div>
+      <p class="note" id="fwNote">รายงานมีแปลน รายการตัดไม้ และไม้แบบทุกด้าน</p>
+    </section>
+
+    <section class="cc">
       <h3>สรุปผลรวมทั้งหมด</h3>
       <table id="sumTbl">
         <thead><tr><th>แนวคาน</th><th class="r">จำนวน</th><th class="r">ยาวรวม (ม.)</th><th class="r">ลบ.ม.</th></tr></thead>
@@ -213,7 +283,7 @@ tr.hot{background:#fdeee3}
       <p class="note" id="sumNote"></p>
     </section>
 
-    <section>
+    <section class="cc">
       <h3>รายการคาน</h3>
       <p id="noBeams">ลากคานบนแปลน หรือพิมพ์ความยาวเพิ่มเอง</p>
       <table id="tbl" hidden>
@@ -229,7 +299,7 @@ tr.hot{background:#fdeee3}
       </div>
     </section>
 
-    <section>
+    <section class="cc">
       <h3>พิมพ์และดาวน์โหลด</h3>
       <div class="row">
         <button id="printBtn" disabled>พิมพ์</button>
@@ -520,7 +590,7 @@ function askBox(msg) {
 }
 async function startFresh() {
   if (S.beams.length && !await askBox('เปิดแปลนใหม่จะล้างรายการคานเดิม ต้องการทำต่อหรือไม่?')) return false;
-  S.beams = []; S.nextNo = 1; S.pending = null; S.scalePts = null;
+  S.beams = []; S.nextNo = 1; S.pending = null; S.scalePts = null; clearRunEdits();
   $('scaleBox').classList.remove('show');
   return true;
 }
@@ -906,7 +976,7 @@ async function autoRead() {
   await new Promise(r => setTimeout(r, 30));
   try {
     const det = detectBeams();
-    S.beams = S.beams.filter(b => !b.auto);
+    S.beams = S.beams.filter(b => !b.auto); clearRunEdits();
     if (!S.beams.length) S.nextNo = 1;
     for (const b of det.beams) { addBeam(b.a, b.b); S.beams[S.beams.length - 1].auto = true; }
     setTool('trace'); renderAll();
@@ -1001,7 +1071,8 @@ function paint() {
     }
   }
 
-  for (const b of S.beams) {
+  if (S.mode === 'formwork') drawRuns(ctx, toScreen, S.view.s, W() < 500 ? 9 : 11);
+  else for (const b of S.beams) {
     if (!b.a) continue;
     const p = toScreen(b.a), q = toScreen(b.b), hot = b === S.hotBeam;
     ctx.strokeStyle = hot ? '#0a7cc2' : '#c8460c'; ctx.lineWidth = hot ? 6 : 4; ctx.lineCap = 'round'; ctx.globalAlpha = .85;
@@ -1282,7 +1353,7 @@ $('clearBtn').addEventListener('click', async () => {
 $('csvBtn').addEventListener('click', exportCSV);
 
 async function saveFile(name, blob) {
-  const note = $('exportNote');
+  const note = $(S.mode === 'formwork' ? 'fwNote' : 'exportNote');
   const dl = window.claude ? await claude.use('downloads') : null;
   if (dl) {
     try { await dl.save({ filename: name, data: blob }); note.textContent = 'บันทึก ' + name + ' แล้ว'; }
@@ -1306,6 +1377,11 @@ function drawPlanTo(g, x, y, w, h) {
   else { g.save(); g.translate(ox, oy); g.scale(s, s); g.strokeStyle = '#3b474d'; g.lineWidth = 1 / s; g.stroke(S.dxf.path); g.restore(); }
   g.lineCap = 'round';
   const pts = S.beams.filter(q => q.a).map(q => ({ q, p: { x: q.a.x * s + ox, y: q.a.y * s + oy }, e: { x: q.b.x * s + ox, y: q.b.y * s + oy } }));
+  if (S.mode === 'formwork') {
+    drawRuns(g, v => ({ x: v.x * s + ox, y: v.y * s + oy }), s, 13);
+    g.restore(); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    return;
+  }
   g.strokeStyle = 'rgba(200,70,12,.8)'; g.lineWidth = 5;
   for (const { p, e } of pts) { g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(e.x, e.y); g.stroke(); }
   g.font = RF(600, 15); g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -1412,28 +1488,35 @@ async function buildPdf(pages) {
   return new Blob(chunks, { type: 'application/pdf' });
 }
 
-async function exportPdf() { await saveFile('คิวปูนคาน.pdf', await buildPdf(reportPages())); }
+const modePages = () => S.mode === 'formwork' ? formworkPages() : reportPages();
+const modeName = () => S.mode === 'formwork' ? 'ไม้แบบคาน' : 'คิวปูนคาน';
+async function exportPdf() { await saveFile(modeName() + '.pdf', await buildPdf(modePages())); }
 async function exportPng() {
-  const pages = reportPages(), c = document.createElement('canvas');
+  const pages = modePages(), c = document.createElement('canvas');
   c.width = pages[0].width; c.height = pages[0].height * pages.length;
   const g = c.getContext('2d');
   pages.forEach((p, i) => g.drawImage(p, 0, i * p.height));
-  await saveFile('คิวปูนคาน.png', await new Promise(r => c.toBlob(r, 'image/png')));
+  await saveFile(modeName() + '.png', await new Promise(r => c.toBlob(r, 'image/png')));
 }
 async function printReport() {
   const area = $('printArea');
-  const imgs = reportPages().map(c => { const i = new Image(); i.src = c.toDataURL('image/jpeg', 0.92); return i; });
+  const imgs = modePages().map(c => { const i = new Image(); i.src = c.toDataURL('image/jpeg', 0.92); return i; });
   area.replaceChildren(...imgs);
   await Promise.all(imgs.map(i => i.decode()));
   window.print();
 }
 if (window.self !== window.top) {        // ในหน้าลิงก์ของ Claude สั่งพิมพ์ตรงไม่ได้ ให้ใช้ PDF แทน
-  $('printBtn').hidden = true;
+  $('printBtn').hidden = true; $('fwPrint').hidden = true;
+  $('fwNote').textContent = 'ถ้าจะพิมพ์ให้ดาวน์โหลด PDF แล้วสั่งพิมพ์จากไฟล์';
   $('exportNote').textContent = 'รายงานมีแปลน ตารางสรุป และรายการคานทุกช่วง ถ้าจะพิมพ์ให้ดาวน์โหลด PDF แล้วสั่งพิมพ์จากไฟล์';
 }
 $('printBtn').addEventListener('click', printReport);
 $('pdfBtn').addEventListener('click', exportPdf);
 $('pngBtn').addEventListener('click', exportPng);
+$('fwPrint').addEventListener('click', printReport);
+$('fwPdf').addEventListener('click', exportPdf);
+$('fwPng').addEventListener('click', exportPng);
+$('fwCsv').addEventListener('click', exportFwCsv);
 
 function exportCSV() {
   const w = widthM(), d = depthM(), q = s => `"${String(s).replace(/"/g, '""')}"`;
@@ -1568,12 +1651,254 @@ function renderAll() {
   else if (S.kind === 'dxf') { n.textContent = 'ใช้หน่วยจากไฟล์ DXF'; n.classList.add('good'); }
   else { n.textContent = 'ยังไม่ได้ตั้งมาตราส่วน'; n.classList.add('bad'); }
 
-  renderTotals(); updateHint(); draw();
+  renderTotals(); renderFormwork(); updateHint(); draw();
 }
+
+/* ---------- คิดไม้แบบ ----------
+   นับว่าไม้แบบแต่ละด้านติดคานตั้งฉากกี่ปลาย
+   ติด 2 ปลาย: ระยะกึ่งกลางเสา − (w + 2t) · ติด 1 ปลาย: เท่าเดิม · ไม่ติด: + w
+   ด้านที่ไม่มีคานมาขวางจะเป็นไม้แนวยาวต่อเนื่องข้ามหลายช่วง */
+const fwCm = id => Math.max(0, parseFloat($(id).value) || 0) / 100;
+function fwLength(cc, n) {
+  const w = fwCm('fwW'), t = fwCm('fwT');
+  return n === 2 ? cc - (w + 2 * t) : n === 1 ? cc : cc + w;
+}
+const runEdits = new Map();             // key -> { n, L } ค่าที่ผู้ใช้แก้เอง
+const runKey = r => [r.horiz ? 'h' : 'v', r.side, Math.round(r.c), Math.round(r.a), Math.round(r.b)].join('|');
+const runLen = r => r.L != null ? r.L : fwLength(r.cc, r.n);
+function clearRunEdits() { runEdits.clear(); }
+function buildRuns() {
+  const res = { runs: [], skipped: 0 };
+  if (!S.mPerUnit) { res.skipped = S.beams.length; return res; }
+  const tol = 0.15 / S.mPerUnit, H = [], V = [];
+  for (const b of S.beams) {
+    const L = beamLength(b);
+    if (!b.a || L == null) { res.skipped++; continue; }
+    const dx = Math.abs(b.a.x - b.b.x), dy = Math.abs(b.a.y - b.b.y);
+    if (dy < dx * 0.02) H.push({ b, L, c: (b.a.y + b.b.y) / 2, lo: Math.min(b.a.x, b.b.x), hi: Math.max(b.a.x, b.b.x) });
+    else if (dx < dy * 0.02) V.push({ b, L, c: (b.a.x + b.b.x) / 2, lo: Math.min(b.a.y, b.b.y), hi: Math.max(b.a.y, b.b.y) });
+    else res.skipped++;
+  }
+  const walk = (own, other, horiz) => {
+    const sorted = [...own].sort((p, q) => p.c - q.c), lines = [];
+    for (const s of sorted) {
+      const l = lines[lines.length - 1];
+      if (l && s.c - l[0].c <= tol) l.push(s); else lines.push([s]);
+    }
+    for (const line of lines) {
+      line.sort((p, q) => p.lo - q.lo);
+      const chains = [];
+      for (const s of line) {
+        const ch = chains[chains.length - 1];
+        if (ch && s.lo - ch[ch.length - 1].hi <= tol) ch.push(s); else chains.push([s]);
+      }
+      for (const ch of chains) for (const side of [-1, 1]) addRuns(ch, other, side, horiz);
+    }
+  };
+  const addRuns = (ch, other, side, horiz) => {
+    const c = ch.reduce((s, x) => s + x.c, 0) / ch.length, p0 = ch[0].lo, pn = ch[ch.length - 1].hi;
+    const edge = c + side * tol;
+    const blocks = [];                  // ตำแหน่งที่มีคานตั้งฉากอยู่ด้านนี้
+    for (const o of other) {
+      if (o.c < p0 - tol || o.c > pn + tol) continue;
+      if (o.lo > edge || o.hi < edge) continue;
+      if (!blocks.some(v => Math.abs(v - o.c) <= tol)) blocks.push(o.c);
+    }
+    blocks.sort((p, q) => p - q);
+    const stops = [];
+    if (!blocks.length || blocks[0] - p0 > tol) stops.push({ p: p0, hit: false });
+    for (const v of blocks) stops.push({ p: Math.min(pn, Math.max(p0, v)), hit: true });
+    if (!blocks.length || pn - blocks[blocks.length - 1] > tol) stops.push({ p: pn, hit: false });
+    const cum = pos => ch.reduce((s, x) => s + (pos >= x.hi ? x.L : pos > x.lo ? x.L * (pos - x.lo) / (x.hi - x.lo) : 0), 0);
+    for (let i = 0; i + 1 < stops.length; i++) {
+      const A = stops[i], B = stops[i + 1], cc = Math.round((cum(B.p) - cum(A.p)) * 1000) / 1000;
+      if (B.p - A.p <= tol) continue;
+      const inRun = ch.filter(x => x.hi > A.p + tol && x.lo < B.p - tol).map(x => x.b.name);
+      res.runs.push({
+        horiz, side, c, a: A.p, b: B.p, cc, n: (A.hit ? 1 : 0) + (B.hit ? 1 : 0),
+        name: inRun.length > 1 ? inRun[0] + '–' + inRun[inRun.length - 1] : (inRun[0] || ''),
+        sideName: horiz ? (side < 0 ? 'บน' : 'ล่าง') : (side < 0 ? 'ซ้าย' : 'ขวา'),
+      });
+    }
+  };
+  walk(H, V, true); walk(V, H, false);
+  for (const r of res.runs) {
+    r.key = runKey(r); r.autoN = r.n;
+    const e = runEdits.get(r.key);
+    if (e) { if (e.n != null) r.n = e.n; if (e.L != null) r.L = e.L; }
+  }
+  return res;
+}
+const RUN_COLOR = ['#1f7a4d', '#2f6fb0', '#c8460c'];
+function drawRuns(g, map, scale, px) {
+  if (!S.mPerUnit) return;
+  const off = Math.max(5, fwCm('fwW') / 2 / S.mPerUnit * scale);
+  g.lineCap = 'butt'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const r of S.runs || []) {
+    const P = map(r.horiz ? { x: r.a, y: r.c } : { x: r.c, y: r.a }), Q = map(r.horiz ? { x: r.b, y: r.c } : { x: r.c, y: r.b });
+    const ox = r.horiz ? 0 : r.side * off, oy = r.horiz ? r.side * off : 0, hot = r === S.hotRun;
+    g.strokeStyle = hot ? '#000' : RUN_COLOR[r.n]; g.lineWidth = hot ? 5 : 3;
+    g.beginPath(); g.moveTo(P.x + ox, P.y + oy); g.lineTo(Q.x + ox, Q.y + oy); g.stroke();
+    if (Math.hypot(P.x - Q.x, P.y - Q.y) < px * 3.2 && !hot) continue;
+    const text = Math.round(runLen(r) * 100) + '';
+    g.font = '600 ' + px + 'px "Noto Sans Thai","Leelawadee UI",Tahoma,sans-serif';
+    const tw = g.measureText(text).width + 6, mx = (P.x + Q.x) / 2 + ox * 1.9, my = (P.y + Q.y) / 2 + oy * 1.9;
+    g.fillStyle = RUN_COLOR[r.n]; g.fillRect(mx - tw / 2, my - px * 0.7, tw, px * 1.4);
+    g.fillStyle = '#fff'; g.fillText(text, mx, my + 0.5);
+  }
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+}
+function cutList() {
+  const m = new Map();
+  for (const r of S.runs || []) {
+    const L = runLen(r);
+    if (L <= 0) continue;
+    const k = L.toFixed(2);
+    m.set(k, (m.get(k) || 0) + 1);
+  }
+  return [...m.entries()].map(([k, n]) => ({ L: parseFloat(k), n })).sort((p, q) => q.L - p.L);
+}
+function renderFormwork() {
+  const res = buildRuns();
+  S.runs = res.runs; S.runSkipped = res.skipped; S.hotRun = null;
+  const w = fwCm('fwW') * 100, t = fwCm('fwT') * 100, h = fwCm('fwH');
+  $('fwRule').textContent = `ติด 2 ปลาย −${(w + 2 * t).toFixed(1)} ซม. · ติด 1 ปลาย เท่าเดิม · ไม่ติด +${w.toFixed(1)} ซม.`;
+  const cuts = cutList(), total = cuts.reduce((s, c) => s + c.L * c.n, 0), pieces = cuts.reduce((s, c) => s + c.n, 0);
+  $('fwTotal').firstChild.nodeValue = total.toFixed(2);
+  $('fwFormula').textContent = !S.beams.length ? 'ยังไม่มีคาน' : !S.mPerUnit ? 'ยังไม่ได้ตั้งมาตราส่วน' : `${pieces} ด้าน · พื้นที่แบบข้าง ${(total * h).toFixed(2)} ตร.ม.`;
+  const cell = (tr, text, cls) => { const td = document.createElement('td'); td.textContent = text; if (cls) td.className = cls; tr.append(td); };
+  const cr = $('cutRows'); cr.replaceChildren();
+  for (const c of cuts) {
+    const tr = document.createElement('tr');
+    cell(tr, c.L.toFixed(2)); cell(tr, String(c.n), 'r'); cell(tr, (c.L * c.n).toFixed(2), 'r'); cr.append(tr);
+  }
+  if (cuts.length) {
+    const tr = document.createElement('tr'); tr.className = 'all';
+    cell(tr, 'รวม'); cell(tr, String(pieces), 'r'); cell(tr, total.toFixed(2), 'r'); cr.append(tr);
+  }
+  $('fwNoteSum').textContent = (S.runSkipped ? `มี ${S.runSkipped} คานที่ไม่ได้คิด เพราะไม่มีตำแหน่งบนแปลนหรือเป็นคานเอียง · ` : '') + 'ยังไม่รวมไม้ท้องคาน ไม้เคร่า และระยะเผื่อ';
+  const rr = $('runRows'); rr.replaceChildren();
+  for (const r of S.runs) {
+    const tr = document.createElement('tr');
+    cell(tr, r.name); cell(tr, r.sideName);
+    const edit = () => { let e = runEdits.get(r.key); if (!e) { e = {}; runEdits.set(r.key, e); } return e; };
+    const sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'ปลายที่ติดคาน ' + r.name + ' ' + r.sideName);
+    [0, 1, 2].forEach(v => sel.add(new Option(v + ' ปลาย', String(v))));
+    sel.value = String(r.n);
+    if (r.n !== r.autoN) sel.classList.add('edited');
+    sel.addEventListener('change', () => { edit().n = +sel.value === r.autoN ? null : +sel.value; renderFormwork(); });
+    const tdN = document.createElement('td'); tdN.className = 'r'; tdN.append(sel); tr.append(tdN);
+    cell(tr, r.cc.toFixed(2), 'r');
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.min = '0'; inp.step = 'any'; inp.value = runLen(r).toFixed(2);
+    inp.setAttribute('aria-label', 'ความยาวไม้แบบ ' + r.name + ' ' + r.sideName);
+    if (r.L != null) { inp.classList.add('edited'); inp.title = 'แก้ค่าเอง ลบตัวเลขออกเพื่อกลับไปใช้สูตร'; }
+    inp.addEventListener('change', () => {
+      const v = parseFloat(inp.value);
+      edit().L = inp.value.trim() === '' || !(v >= 0) ? null : v;
+      renderFormwork();
+    });
+    const tdL = document.createElement('td'); tdL.className = 'r'; tdL.append(inp); tr.append(tdL);
+    tr.addEventListener('mouseenter', () => { S.hotRun = r; tr.classList.add('hot'); draw(); });
+    tr.addEventListener('mouseleave', () => { S.hotRun = null; tr.classList.remove('hot'); draw(); });
+    rr.append(tr);
+  }
+  for (const id of ['fwPrint', 'fwPdf', 'fwPng', 'fwCsv']) $(id).disabled = !S.runs.length;
+  draw();
+}
+['fwW', 'fwT', 'fwH'].forEach(id => $(id).addEventListener('input', renderFormwork));
+
+function exportFwCsv() {
+  const q = s => `"${String(s).replace(/"/g, '""')}"`;
+  const rows = [['คาน', 'ด้าน', 'ติดคาน (ปลาย)', 'ระยะกึ่งกลางเสา (ม.)', 'ไม้แบบ (ม.)'].map(q).join(',')];
+  let sum = 0;
+  for (const r of S.runs) {
+    const L = runLen(r); sum += L;
+    rows.push([q(r.name), q(r.sideName), r.n, r.cc.toFixed(3), L.toFixed(3)].join(','));
+  }
+  rows.push([q('รวม'), '', '', '', sum.toFixed(3)].join(','));
+  saveFile('ไม้แบบคาน.csv', new Blob([String.fromCharCode(0xFEFF) + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+}
+
+function formworkPages() {
+  const PW = 1240, PH = 1754, M = 70, pages = [];
+  let g, y;
+  const newPage = () => {
+    const c = document.createElement('canvas'); c.width = PW; c.height = PH;
+    g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, PW, PH);
+    pages.push(c); y = M;
+  };
+  const text = (s, x, yy, font, color = '#1e2a30', align = 'left') => { g.font = font; g.fillStyle = color; g.textAlign = align; g.fillText(s, x, yy); g.textAlign = 'left'; };
+  const line = (color, wd) => { g.strokeStyle = color; g.lineWidth = wd; g.beginPath(); g.moveTo(M, y); g.lineTo(PW - M, y); g.stroke(); };
+  const cuts = cutList(), total = cuts.reduce((s, c) => s + c.L * c.n, 0), pieces = cuts.reduce((s, c) => s + c.n, 0);
+  const w = fwCm('fwW') * 100, t = fwCm('fwT') * 100, h = fwCm('fwH');
+
+  newPage();
+  text('รายการคำนวณไม้แบบคาน', M, y + 34, RF(700, 42)); y += 66;
+  text($('fileName').textContent + ' · ' + new Date().toLocaleDateString('th-TH', { dateStyle: 'long' }), M, y + 18, RF(400, 24), '#5f6b70'); y += 44;
+  drawPlanTo(g, M, y, PW - M * 2, 760); y += 780;
+  text('เลขบนแปลนคือความยาวไม้แบบ (ซม.) · ส้ม ติด 2 ปลาย · น้ำเงิน ติด 1 ปลาย · เขียว ไม่ติด', M, y + 18, RF(400, 21), '#5f6b70'); y += 40;
+  g.fillStyle = '#1e2a30'; g.fillRect(M, y, PW - M * 2, 120);
+  text('ไม้แบบข้างคานรวม ' + pieces + ' ด้าน', M + 28, y + 46, RF(400, 26), '#fff');
+  text('พื้นที่แบบข้าง ' + (total * h).toFixed(2) + ' ตร.ม. (สูง ' + (h * 100).toFixed(0) + ' ซม.)', M + 28, y + 92, RF(400, 26), '#fff');
+  text(total.toFixed(2) + ' ม.', PW - M - 28, y + 80, RF(700, 62), '#fff', 'right');
+  y += 150;
+  text('ค่าที่ใช้: ติด 2 ปลาย −' + (w + 2 * t).toFixed(1) + ' ซม. · ติด 1 ปลาย เท่าเดิม · ไม่ติด +' + w.toFixed(1) + ' ซม.', M, y + 20, RF(400, 23));
+  y += 36;
+  text('ยังไม่รวมไม้ท้องคาน ไม้เคร่า และระยะเผื่อ', M, y + 20, RF(400, 23), '#5f6b70');
+
+  newPage();
+  const ccols = [[M + 10, 'left'], [M + 500, 'right'], [PW - M - 10, 'right']];
+  const cutHead = () => {
+    text('รายการตัดไม้', M, y + 30, RF(700, 32)); y += 54;
+    ['ยาว (ม.)', 'จำนวน', 'รวม (ม.)'].forEach((v, i) => text(v, ccols[i][0], y + 24, RF(500, 22), '#5f6b70', ccols[i][1]));
+    y += 36; line('#1e2a30', 2);
+  };
+  cutHead();
+  for (const c of cuts) {
+    if (y + 32 > PH - 110) { newPage(); cutHead(); }
+    [c.L.toFixed(2), String(c.n), (c.L * c.n).toFixed(2)].forEach((v, i) => text(v, ccols[i][0], y + 24, RF(400, 22), '#1e2a30', ccols[i][1]));
+    y += 32; line('#eee7d8', 1);
+  }
+  ['รวม', String(pieces), total.toFixed(2)].forEach((v, i) => text(v, ccols[i][0], y + 32, RF(700, 24), '#1e2a30', ccols[i][1]));
+  y += 70;
+
+  const rcols = [[M + 10, 'left'], [M + 300, 'left'], [M + 560, 'right'], [M + 800, 'right'], [PW - M - 10, 'right']];
+  const runHead = () => {
+    text('ไม้แบบแต่ละด้าน', M, y + 30, RF(700, 32)); y += 54;
+    ['คาน', 'ด้าน', 'ติดคาน', 'กลางเสา (ม.)', 'ไม้แบบ (ม.)'].forEach((v, i) => text(v, rcols[i][0], y + 24, RF(500, 22), '#5f6b70', rcols[i][1]));
+    y += 36; line('#1e2a30', 2);
+  };
+  if (y + 150 > PH - 110) newPage();
+  runHead();
+  for (const r of S.runs) {
+    if (y + 32 > PH - 110) { newPage(); runHead(); }
+    [r.name, r.sideName, r.n + ' ปลาย', r.cc.toFixed(2), runLen(r).toFixed(2) + (r.L != null ? ' *' : '')].forEach((v, i) => text(v, rcols[i][0], y + 24, RF(400, 22), '#1e2a30', rcols[i][1]));
+    y += 32; line('#eee7d8', 1);
+  }
+  pages.forEach((c, i) => {
+    const q = c.getContext('2d'); q.font = RF(400, 20); q.fillStyle = '#5f6b70'; q.textAlign = 'right';
+    q.fillText('หน้า ' + (i + 1) + ' / ' + pages.length, PW - M, PH - 40);
+  });
+  return pages;
+}
+
+/* ---------- หน้าหลัก ---------- */
+function route() {
+  const h = location.hash.slice(1);
+  const mode = h === 'formwork' || h === 'concrete' ? h : null;
+  $('menu').hidden = !!mode;
+  if (mode) { S.mode = mode; document.body.dataset.mode = mode; renderAll(); }
+}
+$('goConcrete').addEventListener('click', () => { location.hash = 'concrete'; route(); });
+$('goFormwork').addEventListener('click', () => { location.hash = 'formwork'; route(); });
+$('homeBtn').addEventListener('click', () => { location.hash = ''; $('menu').hidden = false; });
+addEventListener('hashchange', route);
 
 addEventListener('beforeunload', e => { if (S.beams.length) { e.preventDefault(); e.returnValue = ''; } });
 new ResizeObserver(resize).observe(stage);
-resize(); renderAll();
+resize(); renderAll(); route();
 </script>
 </body>
 </html>
